@@ -3,9 +3,10 @@
 // R1 — Unified multi-brain field. Every concept of every brain is a node;
 // react-force-graph lays them out and a custom cluster force pulls each brain's
 // nodes toward its own anchor, so each brain settles into a dotted lobe under a
-// faint brain silhouette. Unfocused → slow rotation. Selecting a brain (left
-// menu or clicking its lobe) focuses it: rotation stops, the view zooms to that
-// lobe, and the others dim.
+// faint brain silhouette. Unfocused → slow rotation + the whole field framed.
+// Selecting a brain (left menu or clicking its lobe) focuses it: rotation stops,
+// the view zooms to that lobe, and the others dim. Click the background (or the
+// logo) to return to the framed home view.
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BrainPoint, BrainLink, OverviewNode, OverviewConceptLink } from '@/lib/overview';
@@ -14,11 +15,11 @@ import { masteryToStatus, nodeDotColor, nodeBorder, nodeTextColor } from '@/lib/
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
   ssr: false,
-  loading: () => <div style={{ padding: 16, color: '#9CA3AF' }}>Loading overview…</div>,
+  loading: () => <div style={{ padding: 16, color: 'var(--text-muted)' }}>Loading overview…</div>,
 });
 
-// Read a CSS custom property if defined (so dark mode themes the canvas), else
-// fall back to the light-mode hex. Works before the Settings palette lands.
+// Read a CSS custom property (so dark mode themes the canvas), with a light-mode
+// fallback for SSR / before styles resolve.
 function cssVar(name: string, fallback: string): string {
   if (typeof window === 'undefined') return fallback;
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -52,11 +53,13 @@ type OverviewData = {
 
 export default function BrainOverview({
   active,
-  selectedBrainId,
+  focusedBrainId,
+  onFocusBrain,
   onOpenBrain,
 }: {
   active: boolean;
-  selectedBrainId: string | null;
+  focusedBrainId: string | null;
+  onFocusBrain: (id: string | null) => void;
   onOpenBrain: (id: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,11 +68,10 @@ export default function BrainOverview({
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [data, setData] = useState<OverviewData>({ brains: [], nodes: [], conceptLinks: [], links: [] });
   const [loading, setLoading] = useState(false);
-  const [focused, setFocused] = useState<string | null>(selectedBrainId);
 
   // Refs the per-frame canvas/rotation code reads without re-rendering.
-  const focusedRef = useRef<string | null>(focused);
-  focusedRef.current = focused;
+  const focusedRef = useRef<string | null>(focusedBrainId);
+  focusedRef.current = focusedBrainId;
   const hoveringRef = useRef(false);
   const rotationRef = useRef(0);
 
@@ -110,11 +112,6 @@ export default function BrainOverview({
     };
   }, [active]);
 
-  // Selecting a brain from the left menu focuses its lobe here.
-  useEffect(() => {
-    setFocused(selectedBrainId);
-  }, [selectedBrainId]);
-
   // Stable graph data (object identity preserved so the sim keeps positions).
   const graphData = useMemo(
     () => ({ nodes: data.nodes.map((n) => ({ ...n })), links: data.conceptLinks.map((l) => ({ ...l })) }),
@@ -135,16 +132,28 @@ export default function BrainOverview({
     fg.d3ReheatSimulation?.();
   }, [data]);
 
-  // Focus changes: zoom to the focused lobe (or the whole field when cleared).
-  useEffect(() => {
+  // Frame the view: the focused lobe, or the whole field by default.
+  const fitView = (ms: number) => {
     const fg = fgRef.current;
     if (!fg || data.nodes.length === 0) return;
-    const t = setTimeout(() => {
-      if (focused) fg.zoomToFit(600, 80, (n: any) => n.brainId === focused);
-      else fg.zoomToFit(600, 50);
-    }, 60);
+    if (focusedRef.current) fg.zoomToFit(ms, 80, (n: any) => n.brainId === focusedRef.current);
+    else fg.zoomToFit(ms, 50);
+  };
+
+  // Re-fit whenever focus or data changes.
+  useEffect(() => {
+    const t = setTimeout(() => fitView(600), 60);
     return () => clearTimeout(t);
-  }, [focused, data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedBrainId, data]);
+
+  // Re-fit when the tab becomes active (the graph may have been hidden at mount).
+  useEffect(() => {
+    if (!active) return;
+    const t = setTimeout(() => fitView(0), 80);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, size.w, size.h]);
 
   // Slow rotation when idle; ease back to upright while hovering or focused so
   // clicks land accurately (the canvas doesn't know about the CSS rotation).
@@ -164,7 +173,7 @@ export default function BrainOverview({
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Centroid of a brain's currently-laid-out nodes (for lobe + link drawing).
+  // Centroid + spread of a brain's currently-laid-out nodes (lobe + links).
   const centroid = (brainId: string) => {
     const ns = (graphData.nodes as any[]).filter((n) => n.brainId === brainId && n.x != null);
     if (!ns.length) return null;
@@ -181,16 +190,23 @@ export default function BrainOverview({
     return { x, y, r: maxR };
   };
 
+  const focusedName = data.brains.find((b) => b.id === focusedBrainId)?.name ?? focusedBrainId;
+
   return (
     <>
       <div className="graph-toolbar">
         <span className="graph-toolbar-label">Your brains — semantic overview</span>
-        <span className="muted" style={{ fontSize: 11 }}>
+        <span className="muted" style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 10 }}>
           {loading
             ? 'Mapping…'
-            : focused
-              ? `Focused on ${data.brains.find((b) => b.id === focused)?.name ?? focused} · click its center to open`
+            : focusedBrainId
+              ? `Focused on ${focusedName} · click its center to open`
               : `${data.brains.length} brains · click a lobe to focus`}
+          {focusedBrainId && (
+            <button className="btn-ghost" onClick={() => onFocusBrain(null)} title="Back to all brains">
+              ← All brains
+            </button>
+          )}
         </span>
       </div>
       <div
@@ -216,19 +232,20 @@ export default function BrainOverview({
               width={size.w}
               height={size.h}
               graphData={graphData}
-              backgroundColor={cssVar('--color-bg', '#FAFAF9')}
+              backgroundColor={cssVar('--bg', '#FAFAF9')}
               cooldownTicks={200}
+              onEngineStop={() => {
+                if (!focusedRef.current) fitView(400);
+              }}
               enableNodeDrag={false}
               enableZoomInteraction={false}
               enablePanInteraction={false}
-              linkColor={() => cssVar('--color-border', '#E5E7EB')}
+              linkColor={() => cssVar('--border', '#E5E7EB')}
               linkWidth={0.5}
-              // Lobe outlines, faint silhouette, and inter-brain dotted links are
-              // drawn under the nodes each frame.
               onRenderFramePre={(ctx: CanvasRenderingContext2D, globalScale: number) => {
                 const focusedNow = focusedRef.current;
-                const lobeColor = cssVar('--color-purple-border', '#C4B5FD');
-                const labelColor = cssVar('--color-text-primary', '#111827');
+                const lobeColor = cssVar('--purple-border', '#C4B5FD');
+                const labelColor = cssVar('--text', '#111827');
 
                 // Inter-brain dotted links between cluster centroids.
                 ctx.save();
@@ -248,19 +265,17 @@ export default function BrainOverview({
                 }
                 ctx.restore();
 
-                // Per-brain dotted lobe + name.
+                // Per-brain dotted lobe + faint silhouette + name.
                 for (const brain of data.brains) {
                   const c = centroid(brain.id);
                   if (!c) continue;
                   const dim = focusedNow && brain.id !== focusedNow;
                   const pad = 26;
                   ctx.save();
-                  ctx.globalAlpha = dim ? 0.1 : 0.55;
                   ctx.setLineDash([3, 4]);
                   ctx.lineWidth = 1.2 / globalScale;
                   ctx.strokeStyle = lobeColor;
-                  // Faint silhouette fill.
-                  ctx.fillStyle = cssVar('--color-purple-bg', '#F3F0FF');
+                  ctx.fillStyle = cssVar('--purple-bg', '#F3F0FF');
                   ctx.globalAlpha = dim ? 0.04 : 0.18;
                   ctx.beginPath();
                   ctx.arc(c.x, c.y, c.r + pad, 0, 2 * Math.PI);
@@ -303,7 +318,6 @@ export default function BrainOverview({
                   ctx.lineWidth = 1 / globalScale;
                   ctx.stroke();
                 }
-                // Labels only for the focused brain (declutter when unfocused).
                 if (focusedNow && node.brainId === focusedNow) {
                   const fontSize = 10 / globalScale;
                   ctx.font = `500 ${fontSize}px system-ui`;
@@ -321,11 +335,10 @@ export default function BrainOverview({
                 ctx.fill();
               }}
               onNodeClick={(n: any) => {
-                // Click within the focused brain → open it; otherwise focus it.
                 if (focusedRef.current === n.brainId) onOpenBrain(n.brainId);
-                else setFocused(n.brainId);
+                else onFocusBrain(n.brainId);
               }}
-              onBackgroundClick={() => setFocused(null)}
+              onBackgroundClick={() => onFocusBrain(null)}
             />
           </div>
         )}

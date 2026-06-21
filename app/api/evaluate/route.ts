@@ -26,6 +26,10 @@ export async function POST(req: Request) {
   const priorTurns: string[] = Array.isArray(body?.priorTurns)
     ? body.priorTurns.filter((t: unknown): t is string => typeof t === 'string')
     : [];
+  const feedbackDetail: 'brief' | 'standard' | 'detailed' =
+    body?.feedbackDetail === 'brief' || body?.feedbackDetail === 'detailed'
+      ? body.feedbackDetail
+      : 'standard';
 
   const redis = await getRedis();
 
@@ -65,6 +69,7 @@ export async function POST(req: Request) {
       known,
       crossBrain,
       priorTurns.join('\n\n'),
+      feedbackDetail,
     ),
     EVALUATION_TOOL,
   );

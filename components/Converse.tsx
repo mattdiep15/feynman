@@ -5,6 +5,9 @@ import type { GraphNode } from '@/lib/graph';
 import type { EvaluationResult } from '@/lib/evaluate';
 import { blendMastery } from '@/lib/score';
 import { statusFromScore } from '@/lib/mastery';
+import { useSettings } from '@/context/SettingsContext';
+import { VOICE_RATE } from '@/lib/settings';
+import { AgentAvatar } from './AgentAvatar';
 
 type Phase = 'idle' | 'recording' | 'transcribing' | 'evaluating' | 'speaking';
 
@@ -27,11 +30,14 @@ export default function Converse({
   brainId,
   concept,
   onScored,
+  onAutoAdvance,
 }: {
   brainId: string;
   concept: GraphNode | null;
   onScored: (conceptId: string, masteryScore: number, status: string) => void;
+  onAutoAdvance: (currentConceptId: string) => void;
 }) {
+  const { settings } = useSettings();
   const [messages, setMessages] = useState<Msg[]>([GREETING]);
   const [phase, setPhase] = useState<Phase>('idle');
   const [draft, setDraft] = useState('');
@@ -51,6 +57,7 @@ export default function Converse({
   const misconRef = useRef<string[]>([]); // misconceptions surfaced this session
   const prevScoreRef = useRef<number>(0); // last displayed score, for the delta
   const committedRef = useRef(false); // guard against double-commit
+  const advancedRef = useRef(false); // guard so auto-advance fires once per session
   const conceptRef = useRef<GraphNode | null>(concept);
   conceptRef.current = concept;
 
@@ -95,6 +102,7 @@ export default function Converse({
   // the OUTGOING concept's session on leave (the cleanup closure captures it).
   useEffect(() => {
     committedRef.current = false;
+    advancedRef.current = false;
     sessionTurnsRef.current = [];
     sessionScoreRef.current = null;
     misconRef.current = [];
@@ -185,6 +193,7 @@ export default function Converse({
           transcript: text,
           brainId,
           priorTurns: sessionTurnsRef.current,
+          feedbackDetail: settings.feedbackDetail,
         }),
       });
       const evaluation: EvaluationResult & { sessionScore: number } = await eRes.json();
@@ -222,6 +231,18 @@ export default function Converse({
       }
 
       await speak(evaluation.feedbackMessage);
+
+      // Auto-advance (Settings): once the running score crosses 70%, hand off to
+      // the next weakest concept. Fires at most once per session.
+      if (
+        settings.autoAdvance &&
+        evaluation.scorable &&
+        evaluation.sessionScore > 70 &&
+        !advancedRef.current
+      ) {
+        advancedRef.current = true;
+        onAutoAdvance(concept.id);
+      }
     } catch {
       setError('Something went wrong during evaluation.');
       setPhase('idle');
@@ -242,6 +263,7 @@ export default function Converse({
       const buf = await res.blob();
       audioRef.current?.pause();
       const audio = new Audio(URL.createObjectURL(buf));
+      audio.playbackRate = VOICE_RATE[settings.voiceSpeed];
       audioRef.current = audio;
       audio.onended = () => {
         audioRef.current = null;
@@ -278,7 +300,11 @@ export default function Converse({
       <div className="messages">
         {messages.map((m) => (
           <div className={`msg${m.role === 'user' ? ' user' : ''}`} key={m.id}>
-            <div className={`avatar ${m.role}`}>{m.role === 'feynman' ? 'F' : 'You'.charAt(0)}</div>
+            {m.role === 'feynman' ? (
+              <AgentAvatar size={28} />
+            ) : (
+              <div className={`avatar ${m.role}`}>{'You'.charAt(0)}</div>
+            )}
             <div>
               <div className={`bubble ${m.role}`}>
                 {m.text}

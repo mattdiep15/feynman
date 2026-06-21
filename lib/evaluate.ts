@@ -18,6 +18,15 @@ export interface EvaluationResult {
   scorable: boolean;
 }
 
+// How verbose the spoken feedbackMessage should be (Settings → Feedback detail).
+export const FEEDBACK_VERBOSITY: Record<'brief' | 'standard' | 'detailed', string> = {
+  brief: 'Keep feedbackMessage to ONE sentence: name one thing correct and one thing to fix.',
+  standard:
+    'Keep feedbackMessage to 2-3 sentences: what was correct, what was missing, and one nudge.',
+  detailed:
+    'Make feedbackMessage a fuller breakdown: score rationale, the correct points, the missing concepts, any misconceptions, and what to study next.',
+};
+
 export function buildEvalPrompt(
   target: { name: string; summary: string },
   transcript: string,
@@ -25,6 +34,7 @@ export function buildEvalPrompt(
   knownMisconceptions: string[],
   crossBrain: RelatedNode[] = [],
   priorTranscript = '',
+  feedbackDetail: 'brief' | 'standard' | 'detailed' = 'standard',
 ): string {
   const relatedList = related.length
     ? related.map((r) => `- ${r.name}: ${r.summary}`).join('\n')
@@ -80,6 +90,8 @@ your sub-scores:
 2. Key relationships (0–30)
 3. Absence of misconceptions (0–20)
 4. Connects to related concepts (0–20)
+
+FEEDBACK LENGTH: ${FEEDBACK_VERBOSITY[feedbackDetail]}
 
 Return ONLY valid JSON in this exact shape:
 {
