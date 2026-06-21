@@ -21,11 +21,13 @@ export default function TeachbackPanel({
   const [error, setError] = useState('');
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const cancelledRef = useRef(false);
 
   const startRecording = async () => {
     setError('');
     setEvaluation(null);
     setTranscript('');
+    cancelledRef.current = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
@@ -33,6 +35,12 @@ export default function TeachbackPanel({
       recorder.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
+        if (cancelledRef.current) {
+          // cancelled: discard audio, don't score
+          chunksRef.current = [];
+          setPhase('idle');
+          return;
+        }
         void handleBlob(new Blob(chunksRef.current, { type: 'audio/webm' }));
       };
       recorderRef.current = recorder;
@@ -46,6 +54,11 @@ export default function TeachbackPanel({
 
   const stopRecording = () => {
     recorderRef.current?.stop();
+  };
+
+  const cancelRecording = () => {
+    cancelledRef.current = true;
+    recorderRef.current?.stop(); // fires onstop, which discards without scoring
   };
 
   const handleBlob = async (blob: Blob) => {
@@ -109,22 +122,33 @@ export default function TeachbackPanel({
 
   return (
     <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #1f2937' }}>
-      <button
-        onClick={phase === 'recording' ? stopRecording : startRecording}
-        disabled={busy}
-        style={{
-          width: '100%',
-          padding: '10px 14px',
-          borderRadius: 8,
-          border: 'none',
-          background: phase === 'recording' ? '#dc2626' : '#16a34a',
-          color: 'white',
-          cursor: busy ? 'default' : 'pointer',
-          opacity: busy ? 0.7 : 1,
-        }}
-      >
-        {label}
-      </button>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          onClick={phase === 'recording' ? stopRecording : startRecording}
+          disabled={busy}
+          style={{
+            flex: 1,
+            padding: '10px 14px',
+            borderRadius: 8,
+            border: 'none',
+            background: phase === 'recording' ? '#dc2626' : '#16a34a',
+            color: 'white',
+            cursor: busy ? 'default' : 'pointer',
+            opacity: busy ? 0.7 : 1,
+          }}
+        >
+          {label}
+        </button>
+        {phase === 'recording' && (
+          <button
+            onClick={cancelRecording}
+            title="Discard this recording without scoring"
+            style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid #374151', background: 'transparent', color: '#e5e7eb', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
 
       {error && <p style={{ color: '#f87171', fontSize: 13 }}>{error}</p>}
 
