@@ -86,6 +86,20 @@ export default function SettingsTab() {
           }
         />
         <Row
+          label="Text size"
+          control={
+            <SegmentedControl
+              value={settings.labelSize}
+              onChange={(v) => update({ labelSize: v as typeof settings.labelSize })}
+              options={[
+                { label: 'Small', value: 'small' },
+                { label: 'Medium', value: 'medium' },
+                { label: 'Large', value: 'large' },
+              ]}
+            />
+          }
+        />
+        <Row
           label="Graph physics"
           control={
             <SegmentedControl

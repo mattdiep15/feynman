@@ -12,6 +12,7 @@ export interface Settings {
   theme: Theme;
   font: FontChoice;
   nodeSize: SizeChoice;
+  labelSize: SizeChoice;
   graphSpeed: SpeedChoice;
   feedbackDetail: FeedbackDetail;
   voiceSpeed: SpeedChoice;
@@ -22,6 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'light',
   font: 'system',
   nodeSize: 'medium',
+  labelSize: 'medium',
   graphSpeed: 'normal',
   feedbackDetail: 'standard',
   voiceSpeed: 'normal',
@@ -48,6 +50,8 @@ export const FONT_LABELS: Record<FontChoice, string> = {
   'dm-sans': 'DM Sans',
 };
 
+// Multiplier applied to graph label font sizes; medium leaves them unchanged.
+export const LABEL_SCALE: Record<SizeChoice, number> = { small: 0.82, medium: 1, large: 1.25 };
 // Lower alphaDecay = the force graph settles more slowly.
 export const GRAPH_ALPHA_DECAY: Record<SpeedChoice, number> = { slow: 0.01, normal: 0.02, fast: 0.05 };
 // TTS playback rate.

@@ -18,7 +18,7 @@ import {
   type NodeStatus,
 } from '@/lib/nodeState';
 import { useSettings } from '@/context/SettingsContext';
-import { GRAPH_ALPHA_DECAY } from '@/lib/settings';
+import { GRAPH_ALPHA_DECAY, LABEL_SCALE } from '@/lib/settings';
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
   ssr: false,
@@ -283,7 +283,7 @@ export default function NeuronMap({
               // Skip any node without finite coords (e.g. mid-drag), so a single
               // bad node can't break the frame. (R6)
               if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
-              const fontSize = 13 / globalScale;
+              const fontSize = (13 * LABEL_SCALE[settings.labelSize]) / globalScale;
 
               // Expansion factor: 1 for the selected node, otherwise grows as the
               // cursor approaches (screen distance = graph distance × globalScale).
