@@ -2,12 +2,14 @@
 
 import type { BrainMeta } from '@/lib/brains';
 import { TAB_DEFS, type TabId } from './tabDefs';
+import { Logo } from './Logo';
 
 export default function Sidebar({
   brains,
   activeBrainId,
   onSwitchBrain,
   onNewBrain,
+  onHome,
   tab,
   onTab,
 }: {
@@ -15,21 +17,16 @@ export default function Sidebar({
   activeBrainId: string | null;
   onSwitchBrain: (id: string) => void;
   onNewBrain: () => void;
+  onHome: () => void;
   tab: TabId;
   onTab: (t: TabId) => void;
 }) {
   return (
     <div className="sidebar">
       <div className="sidebar-top">
-        <div className="logo">
-          <span className="logo-dot">
-            <svg viewBox="0 0 12 12">
-              <circle cx="6" cy="6" r="4" strokeWidth="1.5" />
-              <circle cx="6" cy="6" r="1.5" fill="white" stroke="none" />
-            </svg>
-          </span>
-          Feynman
-        </div>
+        <button className="logo-button" onClick={onHome} title="Back to overview">
+          <Logo />
+        </button>
       </div>
 
       <div className="brain-label">My brains</div>

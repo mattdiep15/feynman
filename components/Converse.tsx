@@ -5,6 +5,7 @@ import type { GraphNode } from '@/lib/graph';
 import type { EvaluationResult } from '@/lib/evaluate';
 import { blendMastery } from '@/lib/score';
 import { statusFromScore } from '@/lib/mastery';
+import { AgentAvatar } from './AgentAvatar';
 
 type Phase = 'idle' | 'recording' | 'transcribing' | 'evaluating' | 'speaking';
 
@@ -278,7 +279,11 @@ export default function Converse({
       <div className="messages">
         {messages.map((m) => (
           <div className={`msg${m.role === 'user' ? ' user' : ''}`} key={m.id}>
-            <div className={`avatar ${m.role}`}>{m.role === 'feynman' ? 'F' : 'You'.charAt(0)}</div>
+            {m.role === 'feynman' ? (
+              <AgentAvatar size={28} />
+            ) : (
+              <div className={`avatar ${m.role}`}>{'You'.charAt(0)}</div>
+            )}
             <div>
               <div className={`bubble ${m.role}`}>
                 {m.text}

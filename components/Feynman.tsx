@@ -23,6 +23,8 @@ export default function Feynman() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [tab, setTab] = useState<TabId>('overview');
+  // Which brain the overview is focused on (null = framed home view).
+  const [overviewFocusId, setOverviewFocusId] = useState<string | null>(null);
   const [building, setBuilding] = useState(false);
   const [addingNotes, setAddingNotes] = useState(false);
   const [creatingBrain, setCreatingBrain] = useState(false);
@@ -92,6 +94,14 @@ export default function Feynman() {
 
   const switchBrain = (id: string) => {
     if (id !== activeBrainId) setActiveBrainId(id);
+    // Picking a brain from the left menu focuses its lobe in the overview.
+    setOverviewFocusId(id);
+  };
+
+  // Logo / home: return to the framed, unfocused overview.
+  const goHome = () => {
+    setTab('overview');
+    setOverviewFocusId(null);
   };
 
   // From the overview dashboard: open a brain and jump into its neuron map.
@@ -167,6 +177,7 @@ export default function Feynman() {
         activeBrainId={activeBrainId}
         onSwitchBrain={switchBrain}
         onNewBrain={() => setCreatingBrain(true)}
+        onHome={goHome}
         tab={tab}
         onTab={setTab}
       />
@@ -189,7 +200,8 @@ export default function Feynman() {
           <div className={`panel graph-panel${h('overview')}`}>
             <BrainOverview
               active={tab === 'overview'}
-              selectedBrainId={activeBrainId}
+              focusedBrainId={overviewFocusId}
+              onFocusBrain={setOverviewFocusId}
               onOpenBrain={openBrain}
             />
           </div>
