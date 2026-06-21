@@ -40,8 +40,11 @@ Stack reference: Next.js 15 / React 19, Redis (vector-indexed), Voyage embedding
 
 **Scope — in:**
 - Make `NotesPanel` reachable for non-empty brains (e.g. an "Add notes" affordance on the Neuron Map tab, or always-available panel toggle).
-- Confirm `/api/extract` is **additive**: extracting from new notes must merge concepts/edges into the existing brain, not wipe it. Audit `app/api/extract/route.ts` and `lib/extract.ts`; if it overwrites, change to upsert (skip/merge concepts whose id already exists, preserving their `masteryScore`/`status`).
-- After a successful add, reload the graph so new nodes appear at score 0.
+- **Fix the confirmed clobber bug** in `app/api/extract/route.ts:27-38`: re-extract does not wipe the brain, but because `hSet`/`zAdd` are keyed by `concept.id` and Claude regenerates ids deterministically from names, any concept whose id collides with an existing one is overwritten with `masteryScore: '0'` / `status: 'untested'`, wiping prior progress. Change to an **upsert**: before writing, check whether `conceptKey(...)` already exists; if so, skip it (or merge name/summary) but **preserve the existing `masteryScore`, `status`, and embedding** — and skip the redundant re-embed (saves Voyage spend). Only brand-new ids get `score: 0`.
+- Edges already use `sAdd` (a set), so they are safely additive — no change needed there.
+- After a successful add, reload the graph so new nodes appear at score 0 and existing nodes keep their colors.
+
+**Known follow-up (note, don't necessarily fix here):** Claude extracts without knowledge of the brain's existing concepts, so it can mint near-duplicate ids (`compound_interest` vs `compounding`). Consider passing existing concept names/ids into `buildExtractPrompt` so it reinforces rather than duplicates. Also verify the `status: 'untested'` written here matches the value `lib/nodeState.ts` keys colors off of (looks like `'untouched'`) — pre-existing inconsistency.
 
 **Scope — out:** No editing/deleting of individual existing nodes (separate future feature). No re-embedding of unchanged concepts.
 
@@ -190,8 +193,8 @@ Stack reference: Next.js 15 / React 19, Redis (vector-indexed), Voyage embedding
 
 F1, F5, and F7 are mutually independent and can be parallelized. F3→F4 and F2→F6 are the two ordered chains.
 
-## Open questions for the user
+## Decisions (resolved)
 
-- **F4 decay factor:** is `α ≈ 0.4` (a single turn moves ~40% toward the new score) the right feel, or do you want faster/slower convergence?
-- **F6 promotion:** should clicking a suggestion immediately add it, or open a confirm step? Spec assumes immediate-add.
-- **F7 brain shape:** how literal should the "brain silhouette" be? Spec treats it as a best-effort aesthetic layer over a working similarity graph.
+- **F4 decay factor:** start with `α ≈ 0.4` but make it an easily-tunable named constant — the value is not settled, we want to play with the feel during implementation.
+- **F6 promotion:** clicking a suggestion node **adds it immediately** (no confirm) and then navigates to the Converse/Chat tab so the user can explain and solidify the newly-added concept right away.
+- **F7 brain shape:** best-effort aesthetic layer over a working similarity graph — ship the graph even if the silhouette is loose.
