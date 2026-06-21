@@ -1,4 +1,4 @@
-# Feynman
+# UC Berkeley AI Hackathon 2026 Submission
 
 <div align="center">
   <img src="media/logo.png" alt="Feynman" width="180"/>
@@ -6,6 +6,7 @@
 
 <p align="center"><i>Build your knowledge graph. Master it by teaching it back.</i></p>
 
+# Feynman
 Feynman is a **voice-first learning agent**. You paste your notes, give it an initial framework of what you want to learn, and it builds a living **knowledge graph** where every node is a concept colored by how well you understand it. Pick a concept, hit record, and explain it out loud — Feynman scores what you got right, what you missed, and what misconceptions crept in, then re-colors the node instantly.
 
 <p align="center">
