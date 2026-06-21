@@ -6,12 +6,23 @@ import { EMBEDDING_DIM } from './embed';
 export const redis = createClient({ url: process.env.REDIS_URL });
 redis.on('error', (e) => console.error('Redis error', e));
 
-let ready = false;
+// Connect once (memoized so concurrent requests don't double-open the socket);
+// index separately so a failed ensureIndexes() doesn't trigger a re-connect.
+let connectPromise: Promise<unknown> | null = null;
+let indexed = false;
 export async function getRedis() {
-  if (!ready) {
-    await redis.connect();
+  if (!redis.isOpen) {
+    if (!connectPromise) {
+      connectPromise = redis.connect().catch((e) => {
+        connectPromise = null; // allow a retry on the next request
+        throw e;
+      });
+    }
+    await connectPromise;
+  }
+  if (!indexed) {
     await ensureIndexes();
-    ready = true;
+    indexed = true; // only flips on success; retries until Search is available
   }
   return redis;
 }
