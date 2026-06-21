@@ -20,7 +20,7 @@ vi.mock('@/lib/embed', () => ({
   toFloat32Buffer: (a: number[]) => Buffer.from(new Float32Array(a).buffer),
 }));
 vi.mock('@/lib/claude', () => ({
-  claudeJson: vi.fn(async () => ({
+  claudeTool: vi.fn(async () => ({
     masteryScore: 55,
     correct: ['defined principal'],
     missing: ['role of time'],
