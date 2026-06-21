@@ -27,6 +27,20 @@ const DEMO_NODES = [
   { id: 'cash_flow', name: 'Cash Flow', masteryScore: 0 },
   { id: 'asset_allocation', name: 'Asset Allocation', masteryScore: 31 },
   { id: 'emergency_fund', name: 'Emergency Fund', masteryScore: 95 },
+  { id: 'debt', name: 'Debt', masteryScore: 40 },
+  { id: 'credit_score', name: 'Credit Score', masteryScore: 63 },
+  { id: 'mortgage', name: 'Mortgage', masteryScore: 27 },
+  { id: 'retirement', name: 'Retirement', masteryScore: 80 },
+  { id: 'index_fund', name: 'Index Fund', masteryScore: 58 },
+  { id: 'stocks', name: 'Stocks', masteryScore: 44 },
+  { id: 'bonds', name: 'Bonds', masteryScore: 35 },
+  { id: 'dividends', name: 'Dividends', masteryScore: 67 },
+  { id: 'capital_gains', name: 'Capital Gains', masteryScore: 52 },
+  { id: 'taxes', name: 'Taxes', masteryScore: 29 },
+  { id: 'roth_ira', name: 'Roth IRA', masteryScore: 76 },
+  { id: 'liquidity', name: 'Liquidity', masteryScore: 12 },
+  { id: 'opportunity_cost', name: 'Opportunity Cost', masteryScore: 84 },
+  { id: 'savings_rate', name: 'Savings Rate', masteryScore: 60 },
 ];
 
 const DEMO_LINKS = [
@@ -37,11 +51,31 @@ const DEMO_LINKS = [
   { source: 'principal', target: 'net_worth' },
   { source: 'principal', target: 'budgeting' },
   { source: 'time_value', target: 'asset_allocation' },
+  { source: 'time_value', target: 'opportunity_cost' },
   { source: 'inflation', target: 'risk_return' },
+  { source: 'inflation', target: 'bonds' },
   { source: 'risk_return', target: 'diversification' },
+  { source: 'risk_return', target: 'stocks' },
   { source: 'budgeting', target: 'cash_flow' },
+  { source: 'budgeting', target: 'savings_rate' },
   { source: 'net_worth', target: 'emergency_fund' },
+  { source: 'net_worth', target: 'debt' },
   { source: 'asset_allocation', target: 'diversification' },
+  { source: 'asset_allocation', target: 'index_fund' },
+  { source: 'debt', target: 'credit_score' },
+  { source: 'credit_score', target: 'mortgage' },
+  { source: 'mortgage', target: 'debt' },
+  { source: 'retirement', target: 'roth_ira' },
+  { source: 'retirement', target: 'index_fund' },
+  { source: 'index_fund', target: 'stocks' },
+  { source: 'index_fund', target: 'bonds' },
+  { source: 'stocks', target: 'dividends' },
+  { source: 'stocks', target: 'capital_gains' },
+  { source: 'dividends', target: 'taxes' },
+  { source: 'capital_gains', target: 'taxes' },
+  { source: 'savings_rate', target: 'emergency_fund' },
+  { source: 'opportunity_cost', target: 'risk_return' },
+  { source: 'liquidity', target: 'cash_flow' },
 ];
 
 function cssVar(name: string, fallback: string): string {
@@ -55,6 +89,7 @@ export default function LandingGraph() {
   const fgRef = useRef<any>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const rotationRef = useRef(0);
+  const tunedRef = useRef(false);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
@@ -69,7 +104,7 @@ export default function LandingGraph() {
   useEffect(() => {
     let raf: number;
     const tick = () => {
-      rotationRef.current += 0.02;
+      rotationRef.current += 0.05;
       if (wrapperRef.current) wrapperRef.current.style.transform = `rotate(${rotationRef.current}deg)`;
       raf = requestAnimationFrame(tick);
     };
@@ -99,7 +134,17 @@ export default function LandingGraph() {
         enablePanInteraction={false}
         linkColor={() => cssVar('--border', '#E5E7EB')}
         linkWidth={0.5}
-        onEngineStop={() => fgRef.current?.d3Force('charge')?.strength(-300)}
+        onEngineStop={() => {
+          // Spread the denser field out, then reheat once so the stronger charge
+          // and link spacing actually take effect (a one-shot guard avoids a
+          // reheat→stop→reheat loop). (R4)
+          const fg = fgRef.current;
+          if (!fg || tunedRef.current) return;
+          tunedRef.current = true;
+          fg.d3Force('charge')?.strength(-600);
+          fg.d3Force('link')?.distance(55);
+          fg.d3ReheatSimulation?.();
+        }}
         nodeCanvasObjectMode={() => 'replace'}
         nodeCanvasObject={(node: any, ctx, globalScale) => {
           const status = masteryToStatus(node.masteryScore);

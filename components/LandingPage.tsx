@@ -3,13 +3,16 @@
 // Full-viewport landing: decorative rotating neuron map behind a centered hero
 // with a radial fade for readability. Clicking the CTA hands off to the app.
 import LandingGraph from './LandingGraph';
+import { Logo } from './Logo';
 
 export default function LandingPage({ onStart }: { onStart: () => void }) {
   return (
     <div className="landing-root">
       <LandingGraph />
       <div className="landing-overlay">
-        <div className="landing-eyebrow">Feynman</div>
+        <div className="landing-logo">
+          <Logo />
+        </div>
         <h1 className="landing-title">
           Learn by teaching.
           <br />

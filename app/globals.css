@@ -921,6 +921,10 @@ details > summary {
   font-weight: 500;
   margin-bottom: 16px;
 }
+.landing-logo {
+  transform: scale(1.5);
+  margin-bottom: 30px;
+}
 .landing-title {
   font-size: 48px;
   color: var(--text);
