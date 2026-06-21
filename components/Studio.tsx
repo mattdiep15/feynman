@@ -136,15 +136,34 @@ export default function Studio() {
           )}
         </div>
 
-        {selected && (
+        {selected ? (
           <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #1f2937' }}>
             <h3 style={{ margin: '0 0 4px' }}>{selected.name}</h3>
             <div style={{ color: '#9ca3af', fontSize: 13 }}>
               {selected.status} · {selected.masteryScore}/100
             </div>
-            <p style={{ fontSize: 14 }}>{selected.summary}</p>
+            {/* Reference definition is hidden by default so it can't be read
+                aloud as a cheat — reveal it only to check yourself afterwards. */}
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: 'pointer', color: '#9ca3af', fontSize: 13 }}>
+                Reveal reference definition (spoiler)
+              </summary>
+              <p style={{ fontSize: 14 }}>{selected.summary}</p>
+            </details>
             <TeachbackPanel concept={selected} onScored={recolorNode} />
           </div>
+        ) : (
+          <p
+            style={{
+              marginTop: 20,
+              paddingTop: 16,
+              borderTop: '1px solid #1f2937',
+              color: '#6b7280',
+              fontSize: 13,
+            }}
+          >
+            Tip: click a node in the graph to teach it back out loud and test your understanding.
+          </p>
         )}
       </aside>
 
