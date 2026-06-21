@@ -9,6 +9,7 @@ import { resolveBrainId, conceptKey, masteryKey } from '@/lib/brains';
 import { statusFromScore } from '@/lib/mastery';
 import { withinBrainKnnQuery, crossBrainKnnQuery, parseSearchResults } from '@/lib/retrieve';
 import { buildEvalPrompt, normalizeEvaluation, EVALUATION_TOOL } from '@/lib/evaluate';
+import { blendMastery } from '@/lib/score';
 import { readMisconceptions, mergeMisconceptions } from '@/lib/memory';
 
 export async function POST(req: Request) {
@@ -46,6 +47,13 @@ export async function POST(req: Request) {
     'name',
     'summary',
   ]);
+  // Prior mastery + attempt count drive the decay blend (Feature 4).
+  const [priorRaw, attemptsRaw] = await redis.hmGet(conceptKey(USER_ID, brainId, conceptId), [
+    'masteryScore',
+    'attempts',
+  ]);
+  const priorScore = Number(priorRaw) || 0;
+  const priorAttempts = Number(attemptsRaw) || 0;
   const known = await readMisconceptions(redis, USER_ID, brainId);
 
   // 3. Claude evaluation, grounded in retrieved nodes. Forced tool use
@@ -62,19 +70,33 @@ export async function POST(req: Request) {
   );
   const evaluation = normalizeEvaluation(raw);
 
-  // 4. persist mastery (HSET + ZADD) + append misconceptions to long-term memory
-  const status = statusFromScore(evaluation.masteryScore);
+  // 3b. blend this turn's score into prior mastery with decay so history counts
+  // and one weak turn doesn't tank the score (Feature 4).
+  const masteryScore = blendMastery(priorScore, evaluation.masteryScore, priorAttempts);
+
+  // 4. persist blended mastery (HSET + ZADD), bump attempts, append misconceptions
+  const status = statusFromScore(masteryScore);
   await redis.hSet(conceptKey(USER_ID, brainId, conceptId), {
-    masteryScore: String(evaluation.masteryScore),
+    masteryScore: String(masteryScore),
     status,
+    attempts: String(priorAttempts + 1),
   });
   await redis.zAdd(masteryKey(USER_ID, brainId), {
-    score: evaluation.masteryScore,
+    score: masteryScore,
     value: conceptId,
   });
   if (evaluation.misconceptions.length) {
     await mergeMisconceptions(redis, known, evaluation.misconceptions, USER_ID, brainId);
   }
 
-  return NextResponse.json({ ...evaluation, status, related, crossBrain });
+  // masteryScore reflects the blended value the UI should recolor to; turnScore
+  // is this explanation's standalone score.
+  return NextResponse.json({
+    ...evaluation,
+    masteryScore,
+    turnScore: evaluation.masteryScore,
+    status,
+    related,
+    crossBrain,
+  });
 }

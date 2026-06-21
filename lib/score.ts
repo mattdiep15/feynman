@@ -34,3 +34,22 @@ export function computeMastery(r: RubricScores): number {
     clampComponent(r.connectsToRelated, RUBRIC_MAX.connectsToRelated);
   return Math.round(sum * 10) / 10;
 }
+
+// Per-turn weight when blending a new score into the running mastery. Lower =
+// more inertia (past mastery sticks); higher = more reactive to the latest
+// turn. Tunable — we're still dialing in the feel.
+export const DECAY_ALPHA = 0.4;
+
+// Blend this turn's score into the prior mastery with exponential decay, so a
+// strong explanation keeps counting over later turns and a single weak turn
+// only partially drags the score down. The first attempt has no history to
+// blend against, so it counts in full.
+export function blendMastery(
+  prior: number,
+  current: number,
+  priorAttempts: number,
+  alpha: number = DECAY_ALPHA,
+): number {
+  if (priorAttempts <= 0) return current;
+  return Math.round((alpha * current + (1 - alpha) * prior) * 10) / 10;
+}

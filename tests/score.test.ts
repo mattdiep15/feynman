@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeMastery, clampComponent } from '../lib/score';
+import { computeMastery, clampComponent, blendMastery, DECAY_ALPHA } from '../lib/score';
 
 describe('computeMastery', () => {
   it('returns 0 when every dimension is 0', () => {
@@ -71,5 +71,38 @@ describe('clampComponent', () => {
     expect(clampComponent(40, 30)).toBe(30);
     expect(clampComponent(-1, 30)).toBe(0);
     expect(clampComponent(NaN, 20)).toBe(0);
+  });
+});
+
+describe('blendMastery', () => {
+  it('counts the first attempt in full (no history)', () => {
+    expect(blendMastery(0, 80, 0)).toBe(80);
+    // prior is ignored on the first attempt regardless of its value
+    expect(blendMastery(55, 80, 0)).toBe(80);
+  });
+
+  it('a single weak turn only partially drags down a strong prior', () => {
+    // prior 90, weak turn 20, alpha 0.4 → 0.4*20 + 0.6*90 = 62 (not 20)
+    const blended = blendMastery(90, 20, 3);
+    expect(blended).toBe(62);
+    expect(blended).toBeGreaterThan(20);
+  });
+
+  it('repeated high scores converge upward; repeated low scores decay downward', () => {
+    let s = 40;
+    for (let i = 0; i < 5; i++) s = blendMastery(s, 95, i + 1);
+    expect(s).toBeGreaterThan(80); // climbs toward the strong turns
+
+    let d = 90;
+    for (let i = 0; i < 5; i++) d = blendMastery(d, 10, i + 1);
+    expect(d).toBeLessThan(35); // erodes toward the weak turns
+  });
+
+  it('honors the alpha weighting and exposes a default', () => {
+    expect(DECAY_ALPHA).toBeGreaterThan(0);
+    expect(DECAY_ALPHA).toBeLessThan(1);
+    // alpha 1 = fully reactive (ignore prior); alpha 0 = fully sticky (ignore current)
+    expect(blendMastery(40, 90, 2, 1)).toBe(90);
+    expect(blendMastery(40, 90, 2, 0)).toBe(40);
   });
 });
