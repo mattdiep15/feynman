@@ -51,6 +51,19 @@ export default function Converse({
   const nextId = useRef(1);
   const endRef = useRef<HTMLDivElement>(null);
 
+  // Live STT (R5): WebSocket to Deepgram, the mic stream, a WebAudio level meter,
+  // and the running transcript. `modeRef` records whether this take is streaming
+  // ('live') or the prerecorded fallback so stop() knows how to finalize.
+  const wsRef = useRef<WebSocket | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const levelRafRef = useRef<number | null>(null);
+  const orbRef = useRef<HTMLSpanElement | null>(null);
+  const liveFinalRef = useRef(''); // committed (is_final) segments so far
+  const finalizedRef = useRef(false); // guard: onerror + manual stop both finalize
+  const modeRef = useRef<'live' | 'prerecorded'>('prerecorded');
+  const [liveText, setLiveText] = useState(''); // interim transcript shown while recording
+
   // Session state (R3): a session is one mount on one concept. Scorable turns
   // accumulate here; the running score is committed to mastery only on leave.
   const sessionTurnsRef = useRef<string[]>([]); // accepted (scorable) turns
@@ -117,6 +130,7 @@ export default function Converse({
       } catch {
         /* recorder may already be inactive */
       }
+      releaseStream();
       commitSession(leaving);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -132,34 +146,206 @@ export default function Converse({
 
   const push = (m: Omit<Msg, 'id'>) => setMessages((ms) => [...ms, { ...m, id: nextId.current++ }]);
 
+  // WebAudio level meter: drive the recording orb's scale via a CSS var so the
+  // amplitude animation never triggers React re-renders.
+  const startLevelMeter = (stream: MediaStream) => {
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx: AudioContext = new Ctx();
+      audioCtxRef.current = ctx;
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const loop = () => {
+        analyser.getByteFrequencyData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) sum += data[i];
+        const level = Math.min(1, sum / data.length / 96);
+        orbRef.current?.style.setProperty('--level', level.toFixed(3));
+        levelRafRef.current = requestAnimationFrame(loop);
+      };
+      loop();
+    } catch {
+      /* level meter is decorative — ignore if WebAudio is unavailable */
+    }
+  };
+
+  const stopLevelMeter = () => {
+    if (levelRafRef.current) cancelAnimationFrame(levelRafRef.current);
+    levelRafRef.current = null;
+    void audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+  };
+
+  // Release the mic + close any open socket. Safe to call multiple times.
+  const releaseStream = () => {
+    stopLevelMeter();
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch {
+        /* already closing */
+      }
+      wsRef.current = null;
+    }
+  };
+
   const startRecording = async () => {
     if (!concept) return;
     setError('');
     cancelledRef.current = false;
+    finalizedRef.current = false;
+    let stream: MediaStream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      chunksRef.current = [];
-      recorder.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
-      recorder.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        if (cancelledRef.current) {
-          chunksRef.current = [];
-          setPhase('idle');
-          return;
-        }
-        void handleBlob(new Blob(chunksRef.current, { type: 'audio/webm' }));
-      };
-      recorderRef.current = recorder;
-      recorder.start();
-      setPhase('recording');
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
       setError('Microphone access denied or unavailable.');
       setPhase('idle');
+      return;
     }
+    streamRef.current = stream;
+    startLevelMeter(stream);
+
+    // Prefer live streaming; fall back to prerecorded if the token or socket fails
+    // so the core teachback loop never breaks. (R5)
+    let token = '';
+    try {
+      const r = await fetch('/api/deepgram-token', { method: 'POST' });
+      if (r.ok) token = (await r.json())?.key ?? '';
+    } catch {
+      /* fall through to prerecorded */
+    }
+
+    if (token && 'WebSocket' in window) {
+      try {
+        startLiveStreaming(stream, token);
+        return;
+      } catch {
+        /* fall through to prerecorded */
+      }
+    }
+    startPrerecorded(stream);
   };
 
-  const stopRecording = () => recorderRef.current?.stop();
+  // Live path: stream mic chunks to Deepgram over a WebSocket and show interim
+  // words as they arrive. Auth uses the subprotocol token so no SDK ships to the
+  // client and the master key never leaves the server.
+  const startLiveStreaming = (stream: MediaStream, token: string) => {
+    modeRef.current = 'live';
+    liveFinalRef.current = '';
+    setLiveText('');
+    const ws = new WebSocket(
+      'wss://api.deepgram.com/v1/listen?model=nova-3&smart_format=true&interim_results=true',
+      ['token', token],
+    );
+    wsRef.current = ws;
+
+    const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    recorderRef.current = recorder;
+    recorder.ondataavailable = (e) => {
+      if (e.data.size && ws.readyState === WebSocket.OPEN) ws.send(e.data);
+    };
+
+    let opened = false;
+    ws.onopen = () => {
+      opened = true;
+      recorder.start(250); // 250ms chunks → near-real-time
+    };
+    ws.onmessage = (ev) => {
+      let msg: any;
+      try {
+        msg = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+      const text: string = msg?.channel?.alternatives?.[0]?.transcript ?? '';
+      if (!text) return;
+      if (msg.is_final) {
+        liveFinalRef.current = `${liveFinalRef.current} ${text}`.trim();
+        setLiveText(liveFinalRef.current);
+      } else {
+        setLiveText(`${liveFinalRef.current} ${text}`.trim());
+      }
+    };
+    ws.onerror = () => {
+      if (!opened && !finalizedRef.current) {
+        // Socket never connected — fall back to prerecorded on the same mic so the
+        // take isn't lost.
+        wsRef.current = null;
+        startPrerecorded(stream);
+      } else {
+        // Mid-stream failure: finalize with whatever was transcribed so far.
+        finalizeLive();
+      }
+    };
+
+    setPhase('recording');
+  };
+
+  // Prerecorded fallback: record to a blob and POST it to /api/transcribe.
+  const startPrerecorded = (stream: MediaStream) => {
+    modeRef.current = 'prerecorded';
+    const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    chunksRef.current = [];
+    recorder.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
+    recorder.onstop = () => {
+      releaseStream();
+      if (cancelledRef.current) {
+        chunksRef.current = [];
+        setPhase('idle');
+        return;
+      }
+      void handleBlob(new Blob(chunksRef.current, { type: 'audio/webm' }));
+    };
+    recorderRef.current = recorder;
+    recorder.start();
+    setPhase('recording');
+  };
+
+  // Finalize a live take: stop interim display, release the mic, and evaluate the
+  // accumulated final transcript through the same path as a typed/prerecorded turn.
+  const finalizeLive = () => {
+    if (finalizedRef.current) return; // guard: onerror + manual stop can both fire
+    finalizedRef.current = true;
+    const text = liveFinalRef.current.trim();
+    releaseStream();
+    setLiveText('');
+    if (cancelledRef.current) {
+      setPhase('idle');
+      return;
+    }
+    if (!text) {
+      setError("Didn't catch that — try again.");
+      setPhase('idle');
+      return;
+    }
+    void evaluateText(text);
+  };
+
+  const stopRecording = () => {
+    try {
+      recorderRef.current?.stop();
+    } catch {
+      /* recorder may already be inactive */
+    }
+    if (modeRef.current === 'live') {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        // Ask Deepgram to flush + return the last finals, then finalize.
+        try {
+          ws.send(JSON.stringify({ type: 'CloseStream' }));
+        } catch {
+          /* ignore */
+        }
+        setTimeout(finalizeLive, 700);
+      } else {
+        finalizeLive();
+      }
+    }
+  };
 
   const handleBlob = async (blob: Blob) => {
     try {
@@ -352,19 +538,30 @@ export default function Converse({
             <Mic strokeWidth={1.5} />
           )}
         </button>
-        <div className="chat-input-wrap">
-          <input
-            className="chat-input"
-            placeholder={concept ? 'Or type your explanation…' : 'Pick a concept from the neuron map first'}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && sendDraft()}
-            disabled={!concept || busy}
-          />
-        </div>
-        <button className="send-btn" onClick={sendDraft} disabled={!concept || busy || !draft.trim()} title="Send">
-          <Send strokeWidth={1.5} />
-        </button>
+        {phase === 'recording' ? (
+          // Reactive voice element replaces the text bar while listening: a pulse
+          // that scales with mic level, plus the live transcript as it streams. (R5)
+          <div className="voice-live">
+            <span className="voice-pulse" ref={orbRef} />
+            <span className="voice-live-text">{liveText || 'Listening…'}</span>
+          </div>
+        ) : (
+          <>
+            <div className="chat-input-wrap">
+              <input
+                className="chat-input"
+                placeholder={concept ? 'Or type your explanation…' : 'Pick a concept from the neuron map first'}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && sendDraft()}
+                disabled={!concept || busy}
+              />
+            </div>
+            <button className="send-btn" onClick={sendDraft} disabled={!concept || busy || !draft.trim()} title="Send">
+              <Send strokeWidth={1.5} />
+            </button>
+          </>
+        )}
       </div>
     </>
   );

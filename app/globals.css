@@ -601,6 +601,38 @@ button {
   flex: 1;
   position: relative;
 }
+/* Reactive voice element (R5): shown in place of the text input while recording. */
+.voice-live {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 36px;
+  padding: 0 14px;
+  border: 0.5px solid var(--purple-border, #c4b5fd);
+  border-radius: 8px;
+  background: var(--purple-bg, #f3f0ff);
+  overflow: hidden;
+}
+.voice-pulse {
+  --level: 0;
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ef4444;
+  transform: scale(calc(1 + var(--level) * 0.9));
+  box-shadow: 0 0 0 calc(var(--level) * 6px) rgba(239, 68, 68, 0.18);
+  transition: transform 0.06s linear;
+}
+.voice-live-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .chat-input {
   width: 100%;
   height: 36px;

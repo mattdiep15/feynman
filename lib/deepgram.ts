@@ -26,6 +26,29 @@ export async function transcribe(audio: Buffer): Promise<string> {
   return transcriptFromResult(result);
 }
 
+// Mint a short-lived, narrowly-scoped key the browser can use to open a live STT
+// WebSocket directly to Deepgram — so the master DEEPGRAM_API_KEY never leaves the
+// server. (R5) Verified against @deepgram/sdk v3.13: manage.getProjects() →
+// { result: { projects } }, manage.createProjectKey(projectId, { comment, scopes,
+// time_to_live_in_seconds }) → { result: { key } }.
+export async function createScopedKey(
+  ttlSeconds = 60,
+): Promise<{ key: string; expiresIn: number }> {
+  const dg = deepgram();
+  const { result: projects, error: pErr } = await dg.manage.getProjects();
+  if (pErr) throw pErr;
+  const projectId = projects?.projects?.[0]?.project_id;
+  if (!projectId) throw new Error('No Deepgram project available');
+  const { result: key, error: kErr } = await dg.manage.createProjectKey(projectId, {
+    comment: 'feynman-browser-live-stt',
+    scopes: ['usage:write'],
+    time_to_live_in_seconds: ttlSeconds,
+  });
+  if (kErr) throw kErr;
+  if (!key?.key) throw new Error('Deepgram returned no key');
+  return { key: key.key, expiresIn: ttlSeconds };
+}
+
 export async function synthesize(text: string): Promise<ReadableStream<Uint8Array>> {
   const response = await deepgram().speak.request({ text }, { model: 'aura-asteria-en' });
   const stream = await response.getStream();
