@@ -5,7 +5,7 @@ import type { GraphNode } from '@/lib/graph';
 import type { EvaluationResult } from '@/lib/evaluate';
 import type { RelatedNode } from '@/lib/retrieve';
 
-type Evaluation = EvaluationResult & { status: string; related: RelatedNode[] };
+type Evaluation = EvaluationResult & { status: string; related: RelatedNode[]; crossBrain: RelatedNode[] };
 type Phase = 'idle' | 'recording' | 'transcribing' | 'evaluating' | 'speaking' | 'done';
 
 export default function TeachbackPanel({
@@ -166,6 +166,12 @@ function Feedback({ evaluation, onReplay }: { evaluation: Evaluation; onReplay: 
       {evaluation.related?.length > 0 && (
         <p style={{ fontSize: 12, color: '#6b7280' }}>
           Retrieved from memory: {evaluation.related.map((r) => r.name).join(', ')}
+        </p>
+      )}
+      {evaluation.crossBrain?.length > 0 && (
+        <p style={{ fontSize: 12, color: '#a78bfa' }}>
+          Bridges from other brains:{' '}
+          {evaluation.crossBrain.map((r) => `${r.name}${r.brainId ? ` (${r.brainId})` : ''}`).join(', ')}
         </p>
       )}
     </div>

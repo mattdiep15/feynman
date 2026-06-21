@@ -1,12 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const ftSearch = vi.fn(async () => ({
-  total: 1,
-  documents: [
-    { id: 'concept:demo:finance:principal', value: { name: 'Principal', summary: 'base', masteryScore: '0', score: '0.2' } },
-    { id: 'concept:demo:finance:compound_interest', value: { name: 'Compound Interest', summary: 'grows', masteryScore: '0', score: '0.05' } },
-  ],
-}));
+const ftSearch = vi.fn(async (_idx: string, query: string) =>
+  query.includes('-@brainId')
+    ? {
+        // cross-brain hit from another brain
+        total: 1,
+        documents: [
+          { id: 'concept:demo:math:exp_growth', value: { name: 'Exponential Growth', summary: 'fast', brainId: 'math', masteryScore: '80' } },
+        ],
+      }
+    : {
+        total: 2,
+        documents: [
+          { id: 'concept:demo:finance:principal', value: { name: 'Principal', summary: 'base', masteryScore: '0', score: '0.2' } },
+          { id: 'concept:demo:finance:compound_interest', value: { name: 'Compound Interest', summary: 'grows', masteryScore: '0', score: '0.05' } },
+        ],
+      },
+);
 const hmGet = vi.fn(async () => ['Compound Interest', 'grows over time']);
 const hGet = vi.fn(async () => null);
 const hSet = vi.fn(async () => 1);
@@ -79,5 +89,19 @@ describe('POST /api/evaluate', () => {
     expect(json.masteryScore).toBe(55);
     expect(json.status).toBe('shaky');
     expect(json.related.map((r: any) => r.id)).toEqual(['principal']);
+  });
+
+  it('runs a cross-brain search and returns bridges from other brains (Feature 4)', async () => {
+    const res = await POST(post({ conceptId: 'compound_interest', transcript: 'it grows' }));
+    const json = await res.json();
+
+    expect(ftSearch).toHaveBeenCalledWith(
+      'idx:concepts',
+      '(@userId:{demo} -@brainId:{finance})=>[KNN 3 @embedding $vec AS score]',
+      expect.objectContaining({ RETURN: ['name', 'summary', 'brainId', 'masteryScore'] }),
+    );
+    expect(json.crossBrain).toEqual([
+      { id: 'exp_growth', name: 'Exponential Growth', summary: 'fast', masteryScore: 80, score: 0, brainId: 'math' },
+    ]);
   });
 });

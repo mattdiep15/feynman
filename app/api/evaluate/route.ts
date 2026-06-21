@@ -6,7 +6,7 @@ import { embed, toFloat32Buffer } from '@/lib/embed';
 import { claudeTool } from '@/lib/claude';
 import { USER_ID, BRAIN_ID } from '@/lib/constants';
 import { statusFromScore } from '@/lib/mastery';
-import { withinBrainKnnQuery, parseSearchResults } from '@/lib/retrieve';
+import { withinBrainKnnQuery, crossBrainKnnQuery, parseSearchResults } from '@/lib/retrieve';
 import { buildEvalPrompt, normalizeEvaluation, EVALUATION_TOOL } from '@/lib/evaluate';
 import { readMisconceptions, mergeMisconceptions } from '@/lib/memory';
 
@@ -30,6 +30,15 @@ export async function POST(req: Request) {
   });
   const related = parseSearchResults(searchRes).filter((r) => r.id !== conceptId);
 
+  // 1b. cross-brain analogical bridges (Feature 4): same index, drop the brain
+  // filter to search OTHER brains. Graceful (empty) when only one brain exists.
+  const crossRes = await redis.ft.search('idx:concepts', crossBrainKnnQuery(3), {
+    PARAMS: { vec: toFloat32Buffer(queryEmbedding) },
+    DIALECT: 2,
+    RETURN: ['name', 'summary', 'brainId', 'masteryScore'],
+  });
+  const crossBrain = parseSearchResults(crossRes);
+
   // 2. target concept (omit embedding) + known misconceptions from long-term memory
   const [name, summary] = await redis.hmGet(`concept:${USER_ID}:${BRAIN_ID}:${conceptId}`, [
     'name',
@@ -40,7 +49,13 @@ export async function POST(req: Request) {
   // 3. Claude evaluation, grounded in retrieved nodes. Forced tool use
   // guarantees structure; normalizeEvaluation still clamps as defense (Rule 6).
   const raw = await claudeTool(
-    buildEvalPrompt({ name: name ?? conceptId, summary: summary ?? '' }, transcript, related, known),
+    buildEvalPrompt(
+      { name: name ?? conceptId, summary: summary ?? '' },
+      transcript,
+      related,
+      known,
+      crossBrain,
+    ),
     EVALUATION_TOOL,
   );
   const evaluation = normalizeEvaluation(raw);
@@ -59,5 +74,5 @@ export async function POST(req: Request) {
     await mergeMisconceptions(redis, known, evaluation.misconceptions);
   }
 
-  return NextResponse.json({ ...evaluation, status, related });
+  return NextResponse.json({ ...evaluation, status, related, crossBrain });
 }

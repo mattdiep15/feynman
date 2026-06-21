@@ -11,6 +11,7 @@ export default function Studio() {
   const [notes, setNotes] = useState('');
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [busy, setBusy] = useState(false);
+  const [refresher, setRefresher] = useState<{ id: string; name: string; masteryScore: number; status: string }[]>([]);
 
   const loadGraph = useCallback(async () => {
     const res = await fetch('/api/graph');
@@ -38,6 +39,17 @@ export default function Studio() {
       s && s.id === id ? { ...s, masteryScore, status: status || statusFromScore(masteryScore) } : s,
     );
   }, []);
+
+  const loadRefresher = async () => {
+    const res = await fetch('/api/refresher');
+    const { concepts } = await res.json();
+    setRefresher(concepts);
+  };
+
+  const selectById = (id: string) => {
+    const node = graph.nodes.find((n) => n.id === id);
+    if (node) setSelected(node);
+  };
 
   const buildGraph = async () => {
     if (!notes.trim()) return;
@@ -74,6 +86,29 @@ export default function Studio() {
         >
           {busy ? 'Building…' : 'Build graph'}
         </button>
+
+        <div style={{ marginTop: 16 }}>
+          <button
+            onClick={loadRefresher}
+            style={{ width: '100%', padding: '8px 14px', borderRadius: 8, border: '1px solid #374151', background: 'transparent', color: '#e5e7eb', cursor: 'pointer' }}
+          >
+            ↻ Refresher: weakest concepts
+          </button>
+          {refresher.length > 0 && (
+            <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0 0' }}>
+              {refresher.map((c) => (
+                <li key={c.id}>
+                  <button
+                    onClick={() => selectById(c.id)}
+                    style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', color: '#e5e7eb', cursor: 'pointer', padding: '4px 0', fontSize: 14 }}
+                  >
+                    {c.name} <span style={{ color: '#9ca3af' }}>· {c.status} {c.masteryScore}/100</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         {selected && (
           <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #1f2937' }}>
