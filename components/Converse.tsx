@@ -192,7 +192,7 @@ export default function Converse({
   };
 
   return (
-    <div className="panel chat-area">
+    <>
       <div className="messages">
         {messages.map((m) => (
           <div className={`msg${m.role === 'user' ? ' user' : ''}`} key={m.id}>
@@ -263,6 +263,6 @@ export default function Converse({
           </svg>
         </button>
       </div>
-    </div>
+    </>
   );
 }

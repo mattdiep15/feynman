@@ -11,7 +11,6 @@ import {
   nodeBorder,
   nodeTextColor,
   nodeRadius,
-  STATUS_PILL,
   type NodeStatus,
 } from '@/lib/nodeState';
 
@@ -34,12 +33,14 @@ export default function NeuronMap({
   links,
   selectedId,
   onSelect,
+  onClear,
 }: {
   brainName: string;
   nodes: GraphNode[];
   links: GraphLink[];
   selectedId: string | null;
   onSelect: (node: GraphNode) => void;
+  onClear: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -59,7 +60,7 @@ export default function NeuronMap({
     : 0;
 
   return (
-    <div className="panel graph-panel">
+    <>
       <div className="graph-toolbar">
         <span className="graph-toolbar-label">{brainName} — neuron map</span>
         <div className="legend-row">
@@ -75,6 +76,9 @@ export default function NeuronMap({
               {label}
             </span>
           ))}
+          <button className="btn-ghost" onClick={onClear} title="Clear this brain">
+            Clear
+          </button>
         </div>
       </div>
       <div className="graph-area" ref={containerRef}>
@@ -142,9 +146,6 @@ export default function NeuronMap({
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }
-
-// Re-exported so the Progress tab and others share the status→pill mapping.
-export { STATUS_PILL };

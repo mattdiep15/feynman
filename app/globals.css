@@ -219,6 +219,9 @@ button {
   padding: 20px;
   overflow-y: auto;
 }
+.panel.hidden {
+  display: none;
+}
 
 /* ---- Buttons / inputs ---- */
 .btn-primary {

@@ -15,7 +15,7 @@ export default function ProgressTab({ nodes }: { nodes: GraphNode[] }) {
   });
 
   return (
-    <div className="panel">
+    <>
       <div className="summary-grid">
         <div className="summary-card">
           <div className="summary-label">avg mastery</div>
@@ -54,6 +54,6 @@ export default function ProgressTab({ nodes }: { nodes: GraphNode[] }) {
         );
       })}
       {total === 0 && <div className="muted" style={{ fontSize: 13 }}>No concepts yet — build a neuron map first.</div>}
-    </div>
+    </>
   );
 }

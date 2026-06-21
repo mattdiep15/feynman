@@ -1,5 +1,5 @@
-import Studio from '@/components/Studio';
+import Feynman from '@/components/Feynman';
 
 export default function Home() {
-  return <Studio />;
+  return <Feynman />;
 }

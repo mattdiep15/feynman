@@ -44,7 +44,7 @@ const STEPS: { n: string; title: string; body: string; tag: string; green?: bool
 
 export default function HowItWorks() {
   return (
-    <div className="panel">
+    <>
       {STEPS.map((s) => (
         <div className="how-step" key={s.n}>
           <div className="step-num">{s.n}</div>
@@ -55,6 +55,6 @@ export default function HowItWorks() {
           </div>
         </div>
       ))}
-    </div>
+    </>
   );
 }
