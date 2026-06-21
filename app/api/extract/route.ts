@@ -15,8 +15,10 @@ export async function POST(req: Request) {
 
   const redis = await getRedis();
 
-  // 1. Claude → defensively-parsed JSON → validated concepts/edges (Rule 6)
-  const raw = await claudeJson(buildExtractPrompt(notes));
+  // 1. Claude → defensively-parsed JSON → validated concepts/edges (Rule 6).
+  // Generous max_tokens: a notes dump can yield many concepts/edges, and a
+  // truncated response is unterminated JSON that parseJson can't recover.
+  const raw = await claudeJson(buildExtractPrompt(notes), { maxTokens: 8192 });
   const { concepts, edges } = normalizeExtraction(raw);
 
   // 2. each concept: HSET (incl. Buffer embedding, userId, brainId) + ZADD mastery (Rule 2)

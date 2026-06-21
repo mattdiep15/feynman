@@ -20,6 +20,7 @@ vi.mock('@/lib/claude', () => ({
 }));
 
 import { POST } from '@/app/api/extract/route';
+import { claudeJson } from '@/lib/claude';
 
 function post(body: unknown) {
   return new Request('http://localhost/api/extract', {
@@ -47,6 +48,9 @@ describe('POST /api/extract', () => {
 
     expect(json.concepts).toHaveLength(2);
     expect(json.edges).toHaveLength(1);
+
+    // generous token budget so large extractions aren't truncated into bad JSON
+    expect(claudeJson).toHaveBeenCalledWith(expect.any(String), { maxTokens: 8192 });
 
     expect(hSet).toHaveBeenCalledWith(
       'concept:demo:finance:compound_interest',
