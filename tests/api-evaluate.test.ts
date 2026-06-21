@@ -81,7 +81,7 @@ describe('POST /api/evaluate', () => {
     expect(zAdd).toHaveBeenCalledWith('mastery:demo:finance', { score: 55, value: 'compound_interest' });
 
     // misconceptions appended to long-term memory
-    expect(hSet).toHaveBeenCalledWith('memory:longterm:demo', {
+    expect(hSet).toHaveBeenCalledWith('memory:longterm:demo:finance', {
       misconceptions: JSON.stringify(['thinks interest is linear']),
     });
 

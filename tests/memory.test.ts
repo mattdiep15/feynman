@@ -17,20 +17,20 @@ describe('mergeMisconceptionLists', () => {
 describe('readMisconceptions', () => {
   it('parses the JSON array field', async () => {
     const redis = { hGet: vi.fn(async () => JSON.stringify(['x', 'y'])), hSet: vi.fn() };
-    expect(await readMisconceptions(redis as any)).toEqual(['x', 'y']);
+    expect(await readMisconceptions(redis as any, 'demo', 'finance')).toEqual(['x', 'y']);
   });
 
   it('returns [] when absent or corrupt', async () => {
-    expect(await readMisconceptions({ hGet: async () => null, hSet: vi.fn() } as any)).toEqual([]);
-    expect(await readMisconceptions({ hGet: async () => 'not json', hSet: vi.fn() } as any)).toEqual([]);
+    expect(await readMisconceptions({ hGet: async () => null, hSet: vi.fn() } as any, 'demo', 'finance')).toEqual([]);
+    expect(await readMisconceptions({ hGet: async () => 'not json', hSet: vi.fn() } as any, 'demo', 'finance')).toEqual([]);
   });
 });
 
 describe('mergeMisconceptions', () => {
-  it('writes the merged JSON back to the long-term key', async () => {
+  it('writes the merged JSON back to the per-brain long-term key', async () => {
     const hSet = vi.fn(async () => 1);
-    await mergeMisconceptions({ hGet: vi.fn(), hSet } as any, ['a'], ['b']);
-    expect(hSet).toHaveBeenCalledWith('memory:longterm:demo', {
+    await mergeMisconceptions({ hGet: vi.fn(), hSet } as any, ['a'], ['b'], 'demo', 'finance');
+    expect(hSet).toHaveBeenCalledWith('memory:longterm:demo:finance', {
       misconceptions: JSON.stringify(['a', 'b']),
     });
   });

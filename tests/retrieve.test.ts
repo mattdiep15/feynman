@@ -3,13 +3,13 @@ import { withinBrainKnnQuery, crossBrainKnnQuery, parseSearchResults } from '../
 
 describe('KNN query builders (Rule 2)', () => {
   it('within-brain filters userId + brainId', () => {
-    expect(withinBrainKnnQuery(5)).toBe(
+    expect(withinBrainKnnQuery(5, 'demo', 'finance')).toBe(
       '(@userId:{demo} @brainId:{finance})=>[KNN 5 @embedding $vec AS score]',
     );
   });
 
   it('cross-brain excludes the current brain', () => {
-    expect(crossBrainKnnQuery(3)).toBe(
+    expect(crossBrainKnnQuery(3, 'demo', 'finance')).toBe(
       '(@userId:{demo} -@brainId:{finance})=>[KNN 3 @embedding $vec AS score]',
     );
   });

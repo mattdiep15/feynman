@@ -1,10 +1,11 @@
-// Feature 3d — Evaluate. POST { conceptId, transcript } → embed → KNN → Claude
-// → persist mastery + misconceptions → EvaluationResult.
+// Feature 3d — Evaluate. POST { conceptId, transcript, brainId? } → embed → KNN
+// → Claude → persist mastery + misconceptions → EvaluationResult.
 import { NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 import { embed, toFloat32Buffer } from '@/lib/embed';
 import { claudeTool } from '@/lib/claude';
-import { USER_ID, BRAIN_ID } from '@/lib/constants';
+import { USER_ID } from '@/lib/constants';
+import { resolveBrainId, conceptKey, masteryKey } from '@/lib/brains';
 import { statusFromScore } from '@/lib/mastery';
 import { withinBrainKnnQuery, crossBrainKnnQuery, parseSearchResults } from '@/lib/retrieve';
 import { buildEvalPrompt, normalizeEvaluation, EVALUATION_TOOL } from '@/lib/evaluate';
@@ -17,12 +18,13 @@ export async function POST(req: Request) {
   if (!conceptId || typeof conceptId !== 'string' || !transcript || typeof transcript !== 'string') {
     return NextResponse.json({ error: 'conceptId and transcript (strings) required' }, { status: 400 });
   }
+  const brainId = resolveBrainId(body?.brainId);
 
   const redis = await getRedis();
 
   // 1. retrieve related concept nodes via KNN (the Redis "beyond caching" proof) (Rule 2)
   const queryEmbedding = await embed(transcript, 'query');
-  const searchRes = await redis.ft.search('idx:concepts', withinBrainKnnQuery(5), {
+  const searchRes = await redis.ft.search('idx:concepts', withinBrainKnnQuery(5, USER_ID, brainId), {
     PARAMS: { vec: toFloat32Buffer(queryEmbedding) },
     DIALECT: 2,
     RETURN: ['name', 'summary', 'masteryScore', 'score'],
@@ -32,7 +34,7 @@ export async function POST(req: Request) {
 
   // 1b. cross-brain analogical bridges (Feature 4): same index, drop the brain
   // filter to search OTHER brains. Graceful (empty) when only one brain exists.
-  const crossRes = await redis.ft.search('idx:concepts', crossBrainKnnQuery(3), {
+  const crossRes = await redis.ft.search('idx:concepts', crossBrainKnnQuery(3, USER_ID, brainId), {
     PARAMS: { vec: toFloat32Buffer(queryEmbedding) },
     DIALECT: 2,
     RETURN: ['name', 'summary', 'brainId', 'masteryScore'],
@@ -40,11 +42,11 @@ export async function POST(req: Request) {
   const crossBrain = parseSearchResults(crossRes);
 
   // 2. target concept (omit embedding) + known misconceptions from long-term memory
-  const [name, summary] = await redis.hmGet(`concept:${USER_ID}:${BRAIN_ID}:${conceptId}`, [
+  const [name, summary] = await redis.hmGet(conceptKey(USER_ID, brainId, conceptId), [
     'name',
     'summary',
   ]);
-  const known = await readMisconceptions(redis);
+  const known = await readMisconceptions(redis, USER_ID, brainId);
 
   // 3. Claude evaluation, grounded in retrieved nodes. Forced tool use
   // guarantees structure; normalizeEvaluation still clamps as defense (Rule 6).
@@ -62,16 +64,16 @@ export async function POST(req: Request) {
 
   // 4. persist mastery (HSET + ZADD) + append misconceptions to long-term memory
   const status = statusFromScore(evaluation.masteryScore);
-  await redis.hSet(`concept:${USER_ID}:${BRAIN_ID}:${conceptId}`, {
+  await redis.hSet(conceptKey(USER_ID, brainId, conceptId), {
     masteryScore: String(evaluation.masteryScore),
     status,
   });
-  await redis.zAdd(`mastery:${USER_ID}:${BRAIN_ID}`, {
+  await redis.zAdd(masteryKey(USER_ID, brainId), {
     score: evaluation.masteryScore,
     value: conceptId,
   });
   if (evaluation.misconceptions.length) {
-    await mergeMisconceptions(redis, known, evaluation.misconceptions);
+    await mergeMisconceptions(redis, known, evaluation.misconceptions, USER_ID, brainId);
   }
 
   return NextResponse.json({ ...evaluation, status, related, crossBrain });

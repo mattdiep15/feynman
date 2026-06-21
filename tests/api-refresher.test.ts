@@ -11,7 +11,7 @@ import { GET } from '@/app/api/refresher/route';
 
 describe('GET /api/refresher', () => {
   it('returns the weakest 4 concepts (ZRANGE 0..3 ascending)', async () => {
-    const res = await GET();
+    const res = await GET(new Request('http://x/api/refresher'));
     const { concepts } = await res.json();
 
     expect(zRange).toHaveBeenCalledWith('mastery:demo:finance', 0, 3);

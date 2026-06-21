@@ -1,8 +1,8 @@
 // Long-term memory: misconceptions live as a JSON array in the
-// memory:longterm:${USER_ID} hash field "misconceptions".
-import { USER_ID } from './constants';
+// memory:longterm:${userId}:${brainId} hash field "misconceptions" (per-brain,
+// so one subject's misconceptions don't bleed into another).
+import { memoryKey } from './brains';
 
-const KEY = `memory:longterm:${USER_ID}`;
 const MAX = 50; // keep the most recent N
 
 type RedisLike = {
@@ -15,8 +15,12 @@ export function mergeMisconceptionLists(known: string[], fresh: string[]): strin
   return Array.from(new Set([...known, ...fresh])).slice(-MAX);
 }
 
-export async function readMisconceptions(redis: RedisLike): Promise<string[]> {
-  const raw = await redis.hGet(KEY, 'misconceptions');
+export async function readMisconceptions(
+  redis: RedisLike,
+  userId: string,
+  brainId: string,
+): Promise<string[]> {
+  const raw = await redis.hGet(memoryKey(userId, brainId), 'misconceptions');
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -30,7 +34,9 @@ export async function mergeMisconceptions(
   redis: RedisLike,
   known: string[],
   fresh: string[],
+  userId: string,
+  brainId: string,
 ): Promise<void> {
   const merged = mergeMisconceptionLists(known, fresh);
-  await redis.hSet(KEY, { misconceptions: JSON.stringify(merged) });
+  await redis.hSet(memoryKey(userId, brainId), { misconceptions: JSON.stringify(merged) });
 }
