@@ -1,20 +1,15 @@
-// Reset — wipe the current brain's data for a clean demo. Leaves the
-// idx:concepts index intact (it re-applies to new concept:* hashes).
+// Reset — wipe one brain's data for a clean demo (and drop it from the
+// registry). Leaves the idx:concepts index intact (it re-applies to new
+// concept:* hashes). brainId comes from the body; defaults to the default brain.
 import { NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
-import { USER_ID, BRAIN_ID } from '@/lib/constants';
+import { USER_ID } from '@/lib/constants';
+import { resolveBrainId, deleteBrain } from '@/lib/brains';
 
-export async function POST() {
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => null);
+  const brainId = resolveBrainId(body?.brainId);
   const redis = await getRedis();
-
-  const keys = [
-    ...(await redis.keys(`concept:${USER_ID}:${BRAIN_ID}:*`)),
-    ...(await redis.keys(`edges:${USER_ID}:${BRAIN_ID}:*`)),
-    `mastery:${USER_ID}:${BRAIN_ID}`,
-    `memory:longterm:${USER_ID}`,
-    `brain:${USER_ID}:${BRAIN_ID}`,
-  ];
-
-  const deleted = keys.length ? await redis.del(keys) : 0; // del ignores missing keys
+  const deleted = await deleteBrain(redis, USER_ID, brainId);
   return NextResponse.json({ ok: true, deleted });
 }

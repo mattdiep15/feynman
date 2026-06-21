@@ -16,7 +16,7 @@ import { GET } from '@/app/api/graph/route';
 
 describe('GET /api/graph', () => {
   it('returns nodes (no embedding) and links keyed by 3-part keys', async () => {
-    const res = await GET();
+    const res = await GET(new Request('http://x/api/graph'));
     const { nodes, links } = await res.json();
 
     expect(zRange).toHaveBeenCalledWith('mastery:demo:finance', 0, -1);

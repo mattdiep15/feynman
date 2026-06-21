@@ -1,6 +1,5 @@
 // KNN retrieval helpers (Rule 2). Query builders + result mapper are pure;
 // the ft.search call lives in the routes.
-import { USER_ID, BRAIN_ID } from './constants';
 
 export interface RelatedNode {
   id: string;
@@ -12,13 +11,13 @@ export interface RelatedNode {
 }
 
 // Within the current brain — used to ground evaluation.
-export function withinBrainKnnQuery(k: number): string {
-  return `(@userId:{${USER_ID}} @brainId:{${BRAIN_ID}})=>[KNN ${k} @embedding $vec AS score]`;
+export function withinBrainKnnQuery(k: number, userId: string, brainId: string): string {
+  return `(@userId:{${userId}} @brainId:{${brainId}})=>[KNN ${k} @embedding $vec AS score]`;
 }
 
 // Other brains only — used for cross-brain analogical bridges (Feature 4).
-export function crossBrainKnnQuery(k: number): string {
-  return `(@userId:{${USER_ID}} -@brainId:{${BRAIN_ID}})=>[KNN ${k} @embedding $vec AS score]`;
+export function crossBrainKnnQuery(k: number, userId: string, brainId: string): string {
+  return `(@userId:{${userId}} -@brainId:{${brainId}})=>[KNN ${k} @embedding $vec AS score]`;
 }
 
 // FT.SEARCH returns { total, documents: [{ id, value: {...RETURN fields} }] }.
