@@ -19,6 +19,10 @@ const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
   loading: () => <div style={{ padding: 16, color: '#9CA3AF' }}>Loading neuron map…</div>,
 });
 
+// Only nodes within this many screen pixels of the cursor expand to show their
+// label; the rest collapse to a colored dot. Keeps a dense map readable.
+const LABEL_RADIUS_PX = 90;
+
 const LEGEND: { status: NodeStatus; label: string }[] = [
   { status: 'untouched', label: 'Untouched' },
   { status: 'weak', label: 'Weak' },
@@ -45,6 +49,10 @@ export default function NeuronMap({
   onAddNotes: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const fgRef = useRef<any>(null);
+  // Cursor position in graph coordinates; drives which labels expand. A ref (not
+  // state) so per-frame label drawing reads it without re-rendering on mousemove.
+  const cursorRef = useRef<{ x: number; y: number } | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
@@ -86,9 +94,25 @@ export default function NeuronMap({
           </button>
         </div>
       </div>
-      <div className="graph-area" ref={containerRef}>
+      <div
+        className="graph-area"
+        ref={containerRef}
+        onPointerMove={(e) => {
+          const el = containerRef.current;
+          if (!el || !fgRef.current) return;
+          const rect = el.getBoundingClientRect();
+          cursorRef.current = fgRef.current.screen2GraphCoords(
+            e.clientX - rect.left,
+            e.clientY - rect.top,
+          );
+        }}
+        onPointerLeave={() => {
+          cursorRef.current = null;
+        }}
+      >
         {size.w > 0 && (
           <ForceGraph2D
+            ref={fgRef}
             width={size.w}
             height={size.h}
             graphData={{ nodes, links }}
@@ -111,6 +135,15 @@ export default function NeuronMap({
               ctx.strokeStyle = node.id === selectedId ? '#7C3AED' : nodeBorder(status);
               ctx.lineWidth = (node.id === selectedId ? 2.5 : 1.5) / globalScale;
               ctx.stroke();
+
+              // Declutter: only expand the label for the selected node or nodes
+              // within LABEL_RADIUS_PX of the cursor (distance in graph units ×
+              // globalScale = screen pixels). Others stay collapsed dots.
+              const cursor = cursorRef.current;
+              const nearCursor =
+                cursor &&
+                Math.hypot(node.x - cursor.x, node.y - cursor.y) * globalScale <= LABEL_RADIUS_PX;
+              if (node.id !== selectedId && !nearCursor) return;
 
               ctx.font = `${status === 'untouched' ? 400 : 500} ${fontSize}px system-ui`;
               ctx.fillStyle = nodeTextColor(status);
