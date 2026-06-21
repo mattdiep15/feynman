@@ -8,6 +8,7 @@ import { statusFromScore } from '@/lib/mastery';
 import { useSettings } from '@/context/SettingsContext';
 import { VOICE_RATE } from '@/lib/settings';
 import { AgentAvatar } from './AgentAvatar';
+import { Mic, Square, Send } from 'lucide-react';
 
 type Phase = 'idle' | 'recording' | 'transcribing' | 'evaluating' | 'speaking';
 
@@ -346,13 +347,9 @@ export default function Converse({
         >
           {phase === 'recording' && <span className="rec-dot" />}
           {phase === 'speaking' ? (
-            <svg viewBox="0 0 16 16" fill="white">
-              <rect x="4" y="4" width="8" height="8" rx="1" />
-            </svg>
+            <Square fill="white" strokeWidth={1.5} />
           ) : (
-            <svg viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth={1.4}>
-              <path d="M8 2a3 3 0 013 3v4a3 3 0 01-6 0V5a3 3 0 013-3zM4 9a4 4 0 008 0M8 13v2M6 15h4" />
-            </svg>
+            <Mic strokeWidth={1.5} />
           )}
         </button>
         <div className="chat-input-wrap">
@@ -366,9 +363,7 @@ export default function Converse({
           />
         </div>
         <button className="send-btn" onClick={sendDraft} disabled={!concept || busy || !draft.trim()} title="Send">
-          <svg viewBox="0 0 14 14" fill="white">
-            <path d="M2 2l10 5-10 5V9l7-2-7-2V2z" />
-          </svg>
+          <Send strokeWidth={1.5} />
         </button>
       </div>
     </>

@@ -15,7 +15,7 @@ import Modal from './Modal';
 import NewBrainModal from './NewBrainModal';
 import BrainOverview from './BrainOverview';
 import SettingsTab from './SettingsTab';
-import { TAB_DEFS, type TabId } from './tabDefs';
+import { PRIMARY_TABS, type TabId } from './tabDefs';
 
 export default function Feynman() {
   const [brains, setBrains] = useState<BrainMeta[]>([]);
@@ -193,7 +193,7 @@ export default function Feynman() {
       />
       <div className="main">
         <div className="tabs">
-          {TAB_DEFS.map((t) => (
+          {PRIMARY_TABS.map((t) => (
             <button
               key={t.id}
               className={`tab${t.id === tab ? ' active' : ''}`}

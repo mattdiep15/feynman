@@ -1,8 +1,9 @@
 'use client';
 
 import type { BrainMeta } from '@/lib/brains';
-import { TAB_DEFS, type TabId } from './tabDefs';
+import { META_TABS, type TabId } from './tabDefs';
 import { Logo } from './Logo';
+import { Plus } from 'lucide-react';
 
 export default function Sidebar({
   brains,
@@ -42,15 +43,12 @@ export default function Sidebar({
         </button>
       ))}
       <button className="add-brain" onClick={onNewBrain}>
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.5}>
-          <line x1="7" y1="2" x2="7" y2="12" />
-          <line x1="2" y1="7" x2="12" y2="7" />
-        </svg>
+        <Plus width={14} height={14} strokeWidth={1.5} />
         New brain
       </button>
 
       <div className="nav-section">
-        {TAB_DEFS.map((t) => (
+        {META_TABS.map((t) => (
           <button
             key={t.id}
             className={`nav-item${t.id === tab ? ' active' : ''}`}

@@ -565,7 +565,7 @@ button {
 .record-btn svg {
   width: 16px;
   height: 16px;
-  fill: white;
+  color: white;
 }
 .record-btn.recording {
   background: #ef4444;
@@ -616,7 +616,7 @@ button {
 .send-btn svg {
   width: 14px;
   height: 14px;
-  fill: white;
+  color: white;
 }
 
 /* ---- Progress ---- */
