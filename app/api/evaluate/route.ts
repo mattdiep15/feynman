@@ -3,11 +3,11 @@
 import { NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 import { embed, toFloat32Buffer } from '@/lib/embed';
-import { claudeJson } from '@/lib/claude';
+import { claudeTool } from '@/lib/claude';
 import { USER_ID, BRAIN_ID } from '@/lib/constants';
 import { statusFromScore } from '@/lib/mastery';
 import { withinBrainKnnQuery, parseSearchResults } from '@/lib/retrieve';
-import { buildEvalPrompt, normalizeEvaluation } from '@/lib/evaluate';
+import { buildEvalPrompt, normalizeEvaluation, EVALUATION_TOOL } from '@/lib/evaluate';
 import { readMisconceptions, mergeMisconceptions } from '@/lib/memory';
 
 export async function POST(req: Request) {
@@ -37,9 +37,11 @@ export async function POST(req: Request) {
   ]);
   const known = await readMisconceptions(redis);
 
-  // 3. Claude evaluation, grounded in retrieved nodes (defensive parse, Rule 6)
-  const raw = await claudeJson(
+  // 3. Claude evaluation, grounded in retrieved nodes. Forced tool use
+  // guarantees structure; normalizeEvaluation still clamps as defense (Rule 6).
+  const raw = await claudeTool(
     buildEvalPrompt({ name: name ?? conceptId, summary: summary ?? '' }, transcript, related, known),
+    EVALUATION_TOOL,
   );
   const evaluation = normalizeEvaluation(raw);
 

@@ -62,6 +62,25 @@ Return ONLY valid JSON in this exact shape:
 }`;
 }
 
+// Forced-tool schema (Rule 6 upgrade) — guarantees the evaluation comes back
+// structured instead of relying on prompt-only JSON.
+export const EVALUATION_TOOL = {
+  name: 'record_evaluation',
+  description: "Record the structured evaluation of the student's spoken explanation.",
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      masteryScore: { type: 'integer', minimum: 0, maximum: 100, description: 'Total 0–100 from the rubric.' },
+      correct: { type: 'array', items: { type: 'string' }, description: 'Things the student got right.' },
+      missing: { type: 'array', items: { type: 'string' }, description: 'Important things left out.' },
+      misconceptions: { type: 'array', items: { type: 'string' }, description: 'Wrong beliefs revealed.' },
+      feedbackMessage: { type: 'string', description: '2-3 warm spoken sentences of feedback.' },
+      followUpQuestion: { type: 'string', description: 'One question probing the biggest gap.' },
+    },
+    required: ['masteryScore', 'correct', 'missing', 'misconceptions', 'feedbackMessage', 'followUpQuestion'],
+  },
+};
+
 function strArray(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
   return v.filter((x): x is string => typeof x === 'string');
