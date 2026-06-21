@@ -81,10 +81,10 @@ describe('blendMastery', () => {
     expect(blendMastery(55, 80, 0)).toBe(80);
   });
 
-  it('a single weak turn only partially drags down a strong prior', () => {
-    // prior 90, weak turn 20, alpha 0.4 → 0.4*20 + 0.6*90 = 62 (not 20)
+  it('a single weak session only partially drags down a strong prior', () => {
+    // prior 90, weak session 20, alpha 0.25 → 0.25*20 + 0.75*90 = 72.5 (not 20)
     const blended = blendMastery(90, 20, 3);
-    expect(blended).toBe(62);
+    expect(blended).toBe(72.5);
     expect(blended).toBeGreaterThan(20);
   });
 

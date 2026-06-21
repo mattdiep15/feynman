@@ -17,12 +17,9 @@ const ftSearch = vi.fn(async (_idx: string, query: string) =>
         ],
       },
 );
-// Two reads per request: name/summary, then masteryScore/attempts (decay input).
-// hmGet returns (string | null)[] — missing fields come back as null.
-const hmGet = vi.fn(
-  async (_key: string, fields: string[]): Promise<(string | null)[]> =>
-    fields.includes('masteryScore') ? ['40', '2'] : ['Compound Interest', 'grows over time'],
-);
+// Target read: name/summary only. (R3 no longer reads prior score here — that
+// moved to /api/commit.)
+const hmGet = vi.fn(async (): Promise<(string | null)[]> => ['Compound Interest', 'grows over time']);
 const hGet = vi.fn(async () => null);
 const hSet = vi.fn(async () => 1);
 const zAdd = vi.fn(async () => 1);
@@ -35,8 +32,9 @@ vi.mock('@/lib/embed', () => ({
   toFloat32Buffer: (a: number[]) => Buffer.from(new Float32Array(a).buffer),
 }));
 vi.mock('@/lib/claude', () => ({
-  // Rubric sub-scores (20+18+10+7 = 55); the total is computed, not free-typed.
+  // Rubric sub-scores (20+18+10+7 = 55); scorable defaults handled by normalize.
   claudeTool: vi.fn(async () => ({
+    scorable: true,
     coreAccuracy: 20,
     keyRelationships: 18,
     absenceOfMisconceptions: 10,
@@ -50,6 +48,7 @@ vi.mock('@/lib/claude', () => ({
 }));
 
 import { POST } from '@/app/api/evaluate/route';
+import { claudeTool } from '@/lib/claude';
 
 function post(body: unknown) {
   return new Request('http://x/api/evaluate', {
@@ -64,9 +63,7 @@ beforeEach(() => {
   zAdd.mockClear();
   ftSearch.mockClear();
   hmGet.mockClear();
-  hmGet.mockImplementation(async (_key: string, fields: string[]) =>
-    fields.includes('masteryScore') ? ['40', '2'] : ['Compound Interest', 'grows over time'],
-  );
+  (claudeTool as ReturnType<typeof vi.fn>).mockClear();
 });
 
 describe('POST /api/evaluate', () => {
@@ -75,7 +72,7 @@ describe('POST /api/evaluate', () => {
     expect((await POST(post({ transcript: 'x' }))).status).toBe(400);
   });
 
-  it('runs KNN, persists mastery + status, excludes the target from related', async () => {
+  it('returns the cumulative session score without persisting (R3)', async () => {
     const res = await POST(post({ conceptId: 'compound_interest', transcript: 'it grows' }));
     const json = await res.json();
 
@@ -86,43 +83,28 @@ describe('POST /api/evaluate', () => {
       expect.objectContaining({ DIALECT: 2, SORTBY: 'score' }),
     );
 
-    // Decay blend: prior 40 (2 attempts) + turn 55 → 0.4*55 + 0.6*40 = 46.
-    // Persisted blended score, derived status, and bumped attempt count.
-    expect(hSet).toHaveBeenCalledWith('concept:demo:finance:compound_interest', {
-      masteryScore: '46',
-      status: 'shaky',
-      attempts: '3',
-    });
-    expect(zAdd).toHaveBeenCalledWith('mastery:demo:finance', { score: 46, value: 'compound_interest' });
-
-    // misconceptions appended to long-term memory
-    expect(hSet).toHaveBeenCalledWith('memory:longterm:demo:finance', {
-      misconceptions: JSON.stringify(['thinks interest is linear']),
-    });
-
-    // response shape: blended masteryScore + standalone turnScore, target excluded
-    expect(json.masteryScore).toBe(46);
-    expect(json.turnScore).toBe(55);
-    expect(json.status).toBe('shaky');
+    // Score computed from the rubric (55); scorable flagged; target excluded.
+    expect(json.sessionScore).toBe(55);
+    expect(json.masteryScore).toBe(55);
+    expect(json.scorable).toBe(true);
     expect(json.related.map((r: any) => r.id)).toEqual(['principal']);
+
+    // Scoring no longer writes to Redis here — that's deferred to /api/commit.
+    expect(hSet).not.toHaveBeenCalled();
+    expect(zAdd).not.toHaveBeenCalled();
   });
 
-  it('counts the first attempt in full (no prior history to blend)', async () => {
-    // Fresh concept: score 0, no attempts recorded yet.
-    hmGet.mockImplementation(async (_key: string, fields: string[]) =>
-      fields.includes('masteryScore') ? ['0', null] : ['Compound Interest', 'grows over time'],
+  it('feeds prior session turns into the prompt for cumulative scoring', async () => {
+    await POST(
+      post({
+        conceptId: 'income',
+        transcript: 'take-home pay is after tax',
+        priorTurns: ['income is money you earn from working'],
+      }),
     );
-
-    const res = await POST(post({ conceptId: 'compound_interest', transcript: 'it grows' }));
-    const json = await res.json();
-
-    // turn score 55 applied directly; attempts initialized to 1.
-    expect(json.masteryScore).toBe(55);
-    expect(hSet).toHaveBeenCalledWith('concept:demo:finance:compound_interest', {
-      masteryScore: '55',
-      status: 'shaky',
-      attempts: '1',
-    });
+    const prompt = (claudeTool as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(prompt).toContain('EARLIER IN THIS SESSION');
+    expect(prompt).toContain('income is money you earn from working');
   });
 
   it('runs a cross-brain search and returns bridges from other brains (Feature 4)', async () => {

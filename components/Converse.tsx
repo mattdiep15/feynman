@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GraphNode } from '@/lib/graph';
 import type { EvaluationResult } from '@/lib/evaluate';
+import { blendMastery } from '@/lib/score';
+import { statusFromScore } from '@/lib/mastery';
 
 type Phase = 'idle' | 'recording' | 'transcribing' | 'evaluating' | 'speaking';
 
@@ -42,6 +44,16 @@ export default function Converse({
   const nextId = useRef(1);
   const endRef = useRef<HTMLDivElement>(null);
 
+  // Session state (R3): a session is one mount on one concept. Scorable turns
+  // accumulate here; the running score is committed to mastery only on leave.
+  const sessionTurnsRef = useRef<string[]>([]); // accepted (scorable) turns
+  const sessionScoreRef = useRef<number | null>(null); // latest cumulative score
+  const misconRef = useRef<string[]>([]); // misconceptions surfaced this session
+  const prevScoreRef = useRef<number>(0); // last displayed score, for the delta
+  const committedRef = useRef(false); // guard against double-commit
+  const conceptRef = useRef<GraphNode | null>(concept);
+  conceptRef.current = concept;
+
   const busy = phase === 'transcribing' || phase === 'evaluating';
 
   // Auto-scroll to the latest message.
@@ -49,9 +61,45 @@ export default function Converse({
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Stop voiceover + any recording when the concept changes or on unmount
-  // (matches the "stop TTS on node switch" behavior).
+  // Commit the running session score to mastery. Fired once when the student
+  // leaves the concept (node switch / brain switch / page unload). No-op if no
+  // scorable turn happened. Optimistically recolors the map with the same blend
+  // the server applies, then persists best-effort (keepalive survives unmount).
+  const commitSession = (c: GraphNode | null) => {
+    if (!c || committedRef.current) return;
+    const score = sessionScoreRef.current;
+    if (score == null) return; // nothing worth committing
+    committedRef.current = true;
+    // priorAttempts proxy: a concept scored before is no longer "untested".
+    const hadHistory = c.status !== 'untested' && c.status !== 'untouched';
+    const blended = blendMastery(c.masteryScore, score, hadHistory ? 1 : 0);
+    onScored(c.id, blended, statusFromScore(blended));
+    try {
+      void fetch('/api/commit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        keepalive: true,
+        body: JSON.stringify({
+          conceptId: c.id,
+          brainId,
+          sessionScore: score,
+          misconceptions: misconRef.current,
+        }),
+      });
+    } catch {
+      /* best-effort; the next session will re-derive from prior mastery */
+    }
+  };
+
+  // Reset the session on concept change, stop voiceover/recording, and commit
+  // the OUTGOING concept's session on leave (the cleanup closure captures it).
   useEffect(() => {
+    committedRef.current = false;
+    sessionTurnsRef.current = [];
+    sessionScoreRef.current = null;
+    misconRef.current = [];
+    prevScoreRef.current = concept?.masteryScore ?? 0;
+    const leaving = concept;
     return () => {
       audioRef.current?.pause();
       audioRef.current = null;
@@ -60,8 +108,18 @@ export default function Converse({
       } catch {
         /* recorder may already be inactive */
       }
+      commitSession(leaving);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [concept?.id]);
+
+  // Commit on page unload too (tab close / refresh), via the live concept ref.
+  useEffect(() => {
+    const handler = () => commitSession(conceptRef.current);
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const push = (m: Omit<Msg, 'id'>) => setMessages((ms) => [...ms, { ...m, id: nextId.current++ }]);
 
@@ -114,30 +172,54 @@ export default function Converse({
   const evaluateText = async (text: string) => {
     if (!concept) return;
     push({ role: 'user', text });
-    const prevScore = concept.masteryScore;
+    const prevScore = prevScoreRef.current;
     try {
       setPhase('evaluating');
       const eRes = await fetch('/api/evaluate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ conceptId: concept.id, transcript: text, brainId }),
+        // Send the accepted turns so far so the score reflects cumulative
+        // understanding, not just this turn (fixes the k=1 lookback).
+        body: JSON.stringify({
+          conceptId: concept.id,
+          transcript: text,
+          brainId,
+          priorTurns: sessionTurnsRef.current,
+        }),
       });
-      const evaluation: EvaluationResult & { status: string } = await eRes.json();
-      onScored(concept.id, evaluation.masteryScore, evaluation.status);
+      const evaluation: EvaluationResult & { sessionScore: number } = await eRes.json();
 
-      const up = evaluation.masteryScore >= prevScore;
-      const badges: Badge[] = [
-        { label: `${up ? '↑' : '↓'} ${prevScore} → ${evaluation.masteryScore}%`, weak: !up },
-      ];
-      if (evaluation.missing?.length) {
-        badges.push({ label: `Missing: ${evaluation.missing[0]}`, weak: true });
+      if (evaluation.scorable) {
+        // Accept the turn into the session and update the running score. The map
+        // is NOT recolored yet — that happens once, on commit (leave).
+        sessionTurnsRef.current = [...sessionTurnsRef.current, text];
+        sessionScoreRef.current = evaluation.sessionScore;
+        prevScoreRef.current = evaluation.sessionScore;
+        if (evaluation.misconceptions?.length) {
+          misconRef.current = Array.from(new Set([...misconRef.current, ...evaluation.misconceptions]));
+        }
+
+        const up = evaluation.sessionScore >= prevScore;
+        const badges: Badge[] = [
+          { label: `${up ? '↑' : '↓'} ${prevScore} → ${evaluation.sessionScore}%`, weak: !up },
+        ];
+        if (evaluation.missing?.length) {
+          badges.push({ label: `Missing: ${evaluation.missing[0]}`, weak: true });
+        }
+        push({
+          role: 'feynman',
+          text: evaluation.feedbackMessage,
+          hint: evaluation.followUpQuestion || undefined,
+          badges,
+        });
+      } else {
+        // Neutral / filler / accidental input — reply, but leave the score alone.
+        push({
+          role: 'feynman',
+          text: evaluation.feedbackMessage,
+          hint: evaluation.followUpQuestion || undefined,
+        });
       }
-      push({
-        role: 'feynman',
-        text: evaluation.feedbackMessage,
-        hint: evaluation.followUpQuestion || undefined,
-        badges,
-      });
 
       await speak(evaluation.feedbackMessage);
     } catch {

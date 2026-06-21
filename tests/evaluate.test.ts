@@ -23,6 +23,19 @@ describe('buildEvalPrompt', () => {
     expect(p).toContain('ANALOGICAL BRIDGES');
     expect(p).toContain('Exponential Growth (math)');
   });
+
+  it('asks for a scorability decision so neutral input can be bypassed', () => {
+    const p = buildEvalPrompt({ name: 'X', summary: 'y' }, 't', [], []);
+    expect(p).toContain('scorable');
+    expect(p).toContain('do not penalize');
+  });
+
+  it('includes prior session turns so scoring is cumulative, not k=1', () => {
+    const p = buildEvalPrompt({ name: 'Income', summary: 'money earned' }, 'take-home pay is after tax', [], [], [], 'income is money you earn from working');
+    expect(p).toContain('EARLIER IN THIS SESSION');
+    expect(p).toContain('income is money you earn from working');
+    expect(p).toContain('take-home pay is after tax');
+  });
 });
 
 describe('normalizeEvaluation', () => {
@@ -67,5 +80,10 @@ describe('normalizeEvaluation', () => {
     expect(e.masteryScore).toBe(0);
     expect(e.correct).toEqual([]);
     expect(e.feedbackMessage.length).toBeGreaterThan(0);
+  });
+
+  it('passes through scorable=false and defaults to true when omitted', () => {
+    expect(normalizeEvaluation({ scorable: false }).scorable).toBe(false);
+    expect(normalizeEvaluation({}).scorable).toBe(true); // a real attempt is never silently dropped
   });
 });
