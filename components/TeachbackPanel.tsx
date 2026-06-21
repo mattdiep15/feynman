@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { GraphNode } from '@/lib/graph';
 import type { EvaluationResult } from '@/lib/evaluate';
 import type { RelatedNode } from '@/lib/retrieve';
@@ -22,6 +22,21 @@ export default function TeachbackPanel({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const cancelledRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Stop any voiceover/recording when this panel unmounts (e.g. a new node is
+  // selected — Studio keys the panel by concept id so switching remounts it).
+  useEffect(() => {
+    return () => {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      try {
+        recorderRef.current?.stop();
+      } catch {
+        /* recorder may already be inactive */
+      }
+    };
+  }, []);
 
   const startRecording = async () => {
     setError('');
@@ -86,10 +101,8 @@ export default function TeachbackPanel({
       // optimistic re-color the moment evaluate returns (before TTS)
       onScored(concept.id, evaluation.masteryScore, evaluation.status);
 
-      // 3e. speak feedback
-      setPhase('speaking');
+      // 3e. speak feedback (speak() owns the speaking→done phase via audio events)
       await speak(evaluation.feedbackMessage);
-      setPhase('done');
     } catch {
       setError('Something went wrong during teachback.');
       setPhase('idle');
@@ -103,13 +116,29 @@ export default function TeachbackPanel({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ text }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setPhase('done');
+        return;
+      }
       const buf = await res.blob();
+      audioRef.current?.pause(); // stop any prior playback
       const audio = new Audio(URL.createObjectURL(buf));
-      await audio.play().catch(() => undefined);
+      audioRef.current = audio;
+      audio.onended = () => {
+        audioRef.current = null;
+        setPhase('done');
+      };
+      setPhase('speaking');
+      await audio.play().catch(() => setPhase('done'));
     } catch {
-      /* audio is best-effort */
+      setPhase('done'); // audio is best-effort
     }
+  };
+
+  const stopSpeaking = () => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    setPhase((p) => (p === 'speaking' ? 'done' : p));
   };
 
   const busy = phase === 'transcribing' || phase === 'evaluating' || phase === 'speaking';
@@ -146,6 +175,15 @@ export default function TeachbackPanel({
             style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid #374151', background: 'transparent', color: '#e5e7eb', cursor: 'pointer' }}
           >
             Cancel
+          </button>
+        )}
+        {phase === 'speaking' && (
+          <button
+            onClick={stopSpeaking}
+            title="Stop the voiceover"
+            style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid #374151', background: 'transparent', color: '#e5e7eb', cursor: 'pointer' }}
+          >
+            ■ Stop
           </button>
         )}
       </div>
