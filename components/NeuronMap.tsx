@@ -83,15 +83,19 @@ function drawLabel(
   fontSize: number,
   globalScale: number,
   fill: string,
-  halo: string,
+  halo: string | null,
 ) {
   ctx.font = `600 ${fontSize}px system-ui`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = 2 / globalScale;
-  ctx.strokeStyle = halo;
-  ctx.strokeText(text, x, y);
+  // No halo (halo === null) in dark mode — white text reads fine on the dark
+  // background without an outline.
+  if (halo) {
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 2 / globalScale;
+    ctx.strokeStyle = halo;
+    ctx.strokeText(text, x, y);
+  }
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y);
 }
@@ -133,11 +137,15 @@ export default function NeuronMap({
   // hover expansion, so expanded nodes (and their labels) don't overlap. (3)
   const COLLIDE_R = EXPANDED_R + 4;
 
-  // Theme-aware colors read once per theme change (not per node per frame). One
-  // neutral label color for every node — consistent, readable on the background,
-  // and a single color in dark mode. (3)
-  const haloColor = useMemo(() => cssVar('--bg', '#FAFAF9'), [settings.theme]);
-  const labelColor = useMemo(() => cssVar('--text-secondary', '#6b7280'), [settings.theme]);
+  // Theme-aware colors read once per theme change (not per node per frame). In
+  // dark mode every node label is plain white with no halo; in light mode a
+  // neutral grey with a background-colored halo for legibility. (3)
+  const isDark = settings.theme === 'dark';
+  const haloColor = useMemo(() => (isDark ? null : cssVar('--bg', '#FAFAF9')), [isDark]);
+  const labelColor = useMemo(
+    () => (isDark ? '#ffffff' : cssVar('--text-secondary', '#6b7280')),
+    [isDark],
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);

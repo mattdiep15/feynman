@@ -246,18 +246,25 @@ export default function Feynman() {
       />
       <div className="main">
         <div className="tabs">
-          {PRIMARY_TABS.map((t) => (
-            <button
-              key={t.id}
-              className={`tab${t.id === tab ? ' active' : ''}`}
-              // The Overview tab is the home view — same as the logo: clear any
-              // brain focus so it never opens a brain-specific overview.
-              onClick={() => (t.id === 'overview' ? goHome() : setTab(t.id))}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          ))}
+          {PRIMARY_TABS.map((t) => {
+            // Overview is the global home view; the rest open a specific brain, so
+            // disable them until a brain is selected in the sidebar.
+            const disabled = t.id !== 'overview' && !activeBrain;
+            return (
+              <button
+                key={t.id}
+                className={`tab${t.id === tab ? ' active' : ''}`}
+                disabled={disabled}
+                title={disabled ? 'Select a brain first' : undefined}
+                // The Overview tab is the home view — same as the logo: clear any
+                // brain focus so it never opens a brain-specific overview.
+                onClick={() => (t.id === 'overview' ? goHome() : setTab(t.id))}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="content">
