@@ -36,6 +36,13 @@ describe('buildEvalPrompt', () => {
     expect(p).toContain('income is money you earn from working');
     expect(p).toContain('take-home pay is after tax');
   });
+
+  it('injects the feedback-verbosity instruction from the detail setting', () => {
+    const brief = buildEvalPrompt({ name: 'X', summary: 'y' }, 't', [], [], [], '', 'brief');
+    const detailed = buildEvalPrompt({ name: 'X', summary: 'y' }, 't', [], [], [], '', 'detailed');
+    expect(brief).toContain('ONE sentence');
+    expect(detailed).toContain('fuller breakdown');
+  });
 });
 
 describe('normalizeEvaluation', () => {
