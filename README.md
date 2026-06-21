@@ -1,127 +1,136 @@
 # Feynman
 
-A **voice-first learning agent**. You talk to it, it builds a living knowledge
-graph of what you're studying, makes you **teach concepts back out loud**,
-listens, judges your understanding, speaks feedback back, and updates a
-persistent memory of your mastery. The map of your knowledge gets smarter every
-session.
+<div align="center">
+  <img src="media/logo.png" alt="Feynman" width="180"/>
+</div>
 
-Built with Next.js (App Router) + TypeScript. Claude for extraction/evaluation,
-Deepgram for speech in/out, Voyage for embeddings, Redis Cloud (Search & Query)
-for semantic memory.
+<p align="center"><i>Build your knowledge graph. Master it by teaching it back.</i></p>
 
----
+Feynman is a **voice-first learning agent**. You paste your notes, give it an initial framework of what you want to learn, and it builds a living **knowledge graph** where every node is a concept colored by how well you understand it. Pick a concept, hit record, and explain it out loud — Feynman scores what you got right, what you missed, and what misconceptions crept in, then re-colors the node instantly.
 
-## Quick start
-
-### 1. Prerequisites
-- Node 18+ (built on 22).
-- A **Redis Cloud** database with the **Search & Query (RediSearch)** capability
-  **enabled**. Vanilla Redis / Upstash do **not** support `FT.*` — vector search
-  silently fails without it. Connection uses TLS (`rediss://`).
-- API keys for Anthropic, Deepgram, and Voyage AI.
-
-### 2. Configure secrets
-Copy the example env file and fill it in. **Never commit `.env.local`.**
-```bash
-cp .env.local.example .env.local
-# then edit .env.local:
-#   ANTHROPIC_API_KEY=...
-#   DEEPGRAM_API_KEY=...
-#   VOYAGE_API_KEY=...
-#   REDIS_URL=rediss://default:<password>@<host>:<port>
-```
-
-### 3. Install & run
-```bash
-npm install
-npm run dev      # http://localhost:3000
-```
-On first request the app connects to Redis and creates the `idx:concepts`
-vector index (idempotent — safe on every cold start).
-
-### 4. Test
-```bash
-npm test         # unit + route tests (external SDKs mocked — no keys needed)
-```
-
-> For step-by-step bring-up, per-layer verification (Redis/extract/voice), API
-> smoke tests, and troubleshooting, see **[RUNBOOK.md](./RUNBOOK.md)**.
-
-### 5. Build / deploy
-```bash
-npm run build
-```
-Deploy to Vercel; set the four env vars in the Vercel project settings. The
-build does not need live keys (clients are lazily initialized).
+<p align="center">
+  <a href="https://feynman-pi.vercel.app/"><b>🚀 Try it out</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://devpost.com/software/feynman-s6h3ke"><b>📝 Devpost</b></a>
+</p>
 
 ---
 
-## Pinned models
-| Purpose | Value |
-|---|---|
-| Claude | `claude-sonnet-4-6` |
-| Embeddings | `voyage-3.5-lite`, dim **512** |
-| Deepgram STT | `nova-3` |
-| Deepgram TTS | `aura-asteria-en` |
+## App Overview
 
-SDK signatures verified against `@deepgram/sdk` v3.13
-(`listen.prerecorded.transcribeFile`, `speak.request().getStream()`) and
-`voyageai` 0.0.4 (`VoyageAIClient.embed`).
+<table>
+  <tr>
+    <td align="center">
+      <img src="media/start_screen.png" alt="Start" width="320"/>
+      <br/>
+      <b>Start</b>
+      <br/>
+      <sub>Land, drop in your notes, and start learning</sub>
+    </td>
+    <td align="center">
+      <img src="media/converse.png" alt="Converse" width="320"/>
+      <br/>
+      <b>Converse</b>
+      <br/>
+      <sub>Explain a concept out loud; get scored, grounded feedback</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="media/neuron_map.png" alt="Neuron Map" width="320"/>
+      <br/>
+      <b>Neuron Map</b>
+      <br/>
+      <sub>Your knowledge as a graph, nodes colored by mastery</sub>
+    </td>
+    <td align="center">
+      <img src="media/progress.png" alt="Progress" width="320"/>
+      <br/>
+      <b>Progress</b>
+      <br/>
+      <sub>Track mastery per concept across every session</sub>
+    </td>
+  </tr>
+</table>
 
 ---
 
-## Core loop
-```
-Notes in → Claude extracts concepts + edges (JSON) → embed → Redis (HASH + vector index)
-         → react-force-graph-2d renders nodes colored by mastery
+## Inspiration
 
-Pick a node → Record → speak explanation
-  → Deepgram STT → transcript
-  → embed transcript ('query') → Redis KNN search → related concept nodes
-  → Claude evaluates, grounded in retrieved nodes → { masteryScore, correct, missing, ... }
-  → Deepgram TTS speaks feedbackMessage
-  → Redis updates mastery (HSET + ZADD) → node re-colors instantly
-```
+I've always been searching for more effective ways to learn. I've tried pomodoro, blurting, and plenty of other methods, but none of them felt as effective as one idea I kept coming back to: teaching is the most effective way to learn. When you have to explain something to someone else, you find out very quickly what you actually know and what concepts you need to spend more time on.
 
-## API routes
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/api/extract` | POST | Notes → Claude → embed → Redis write |
-| `/api/graph` | GET | Read nodes + edges (no embedding) → graph data |
-| `/api/transcribe` | POST | Audio blob → Deepgram STT → transcript |
-| `/api/evaluate` | POST | Transcript → embed → KNN → Claude eval → Redis update |
-| `/api/speak` | POST | Feedback text → Deepgram TTS → audio |
-| `/api/refresher` | GET | Weakest concepts (ZRANGE) to review next |
+That led me to the Feynman technique. If you can't explain a concept in plain language, you don't deeply understand it. The moment you try to teach something out loud, every gap in your knowledge surfaces immediately. It's hard to fake your way through an explanation.
 
-## Project layout
-```
-app/
-  page.tsx                 renders <Studio/>
-  api/*/route.ts           the six routes above
-components/
-  Studio.tsx               notes input · graph · refresher · selection
-  BrainGraph.tsx           react-force-graph-2d (dynamic import, ssr:false)
-  TeachbackPanel.tsx       record → transcribe → evaluate → speak + feedback
-lib/
-  constants.ts             USER_ID / BRAIN_ID / CLAUDE_MODEL
-  embed.ts                 Voyage embed + Float32 buffer (single source of DIM)
-  redis.ts                 client + idempotent ensureIndexes()
-  claude.ts                claudeJson (retry-once) + claudeTool (forced output)
-  extract / evaluate / retrieve / memory / graph / mastery / json
-tests/                     vitest unit + mocked-route tests
-```
+I'd also always wanted to visualize the connections between topics and actually see which areas I needed to build up before tackling harder concepts. So I combined the two ideas into one tool — something that makes you explain to demonstrate mastery, listens to how you learn, and visualizes the entire process.
 
-## Demo script
-1. Open the app. Click **Load sample notes** (compound interest, principal,
-   rates), then **Build graph**. Gray (untested) nodes appear.
-2. Click **Compound Interest**, hit record, and *speak* — deliberately omit how
-   time drives compounding.
-3. Feynman transcribes, **embeds + vector-searches Redis** for related nodes,
-   and Claude evaluates in that context.
-4. Feynman **speaks back**: "You nailed principal and rate — but you skipped how
-   time makes compounding powerful." The node dims gray→amber.
-5. Re-explain with the fix. Score jumps, the node turns green, and the misconception
-   is remembered for next session.
+---
 
-> Audio breaks on stage — rehearse the live voice flow twice before demoing.
+## What does Feynman do?
+
+Feynman is a voice-first learning agent. You paste your notes, give it an initial framework of what you want to learn, and it builds a living knowledge graph where every node is a concept colored by how well you understand it.
+
+When you're ready to study, pick a concept, hit record, and explain it out loud. Feynman transcribes your explanation, searches your knowledge graph for related concepts, and passes everything to Claude. Claude scores what you got right, what you missed, and what misconceptions crept in. Deepgram speaks the feedback back to you. The node re-colors instantly.
+
+The more you use it, the smarter it gets. Feynman tracks your misconceptions, your progress, and how you like to be taught across sessions. It adapts to your learning style.
+
+---
+
+## How I built it
+
+**Frontend:** Built with Next.js. The neuron map is rendered using react-force-graph-2d, with nodes colored by mastery state. Untouched concepts appear hollow. The more you study a concept, the more it fills in.
+
+**Voice:** Deepgram STT (nova-3) transcribes everything you say. Deepgram TTS speaks the feedback back. The whole experience is a conversation. You talk, it responds.
+
+**Reasoning:** Claude reads your notes and pulls out the key concepts and how they connect. When you converse with Feynman, it evaluates your explanation against what you've actually studied; it grounds itself in your knowledge graph.
+
+**Embeddings:** Voyage AI embeds every concept and spoken transcript into vectors, making it possible to find concepts that are related in meaning across your entire neuron map.
+
+**Memory:** Redis Cloud with Search and Query is where everything lives. When you speak, your transcript is embedded and KNN-searched against your knowledge graph to find the most relevant concepts. Mastery scores, misconceptions, and learning preferences all persist across sessions in long-term memory. It's the agent's brain.
+
+> 📖 For setup, env vars, API routes, and the full architecture, see **[DEVELOPMENT.md](./DEVELOPMENT.md)**.
+
+---
+
+## Challenges I ran into
+
+**Redis vector search setup.** Getting Redis vector search working was one of the bigger hurdles. Not all Redis tiers include the Search and Query module, which took time to figure out. On top of that, embeddings have to be passed as a Float32Buffer, not a raw JS array. Passing the wrong type returns nothing silently, which made it fairly annoying to debug.
+
+**react-force-graph-2d in Next.js.** The library uses browser APIs that don't exist on the server, which crashes Next.js on startup. It needs to be dynamically imported with `ssr: false`, otherwise the app just white-screens with no useful error message.
+
+**Consistent JSON from Claude.** The evaluation prompt needs to return structured JSON every time or the frontend breaks. Getting Claude to stay consistent while still producing useful feedback took many iterations.
+
+**Voyage AI embeddings.** Anthropic has no native embeddings endpoint. I assumed it worked like other providers, but their documentation points to Voyage AI as the recommended provider, so I went with that.
+
+---
+
+## Accomplishments that I'm proud of
+
+The core loop working end-to-end is what I'm most proud of. You speak, Feynman retrieves your knowledge graph from Redis, Claude evaluates against that context, Deepgram speaks the feedback back, and the node re-colors. The whole interaction feels responsive and highly curated to you.
+
+I'm also proud of building out the memory system and figuring out how to have the agent actually learn from your responses over time. Getting the relationship between concepts to inform how Claude evaluates you, and having that context persist and grow across sessions, was one of the more rewarding features to get working.
+
+---
+
+## What I learned
+
+This was my first project connecting multiple API endpoints together and working with Redis, and I felt like I was ambitious with the scope. Getting all the pieces talking to each other reliably, managing latency between Deepgram STT and Claude, keeping API keys server-side, took far more time and thinking than I expected.
+
+I also learned that an idea like the Feynman technique is structured really well for an AI interaction loop. A naturally structured process with clear inputs and outputs gives you a lot to work with, and plugging the right APIs into each step of that loop is what brought the ideas into a working POC.
+
+---
+
+## Feynman's Future
+
+**Cross-brain transfer learning.** When a new concept enters one brain, vector search across all brains finds semantically similar mastered concepts. Claude draws bridge edges with analogies like "you already understand exponential growth from math. Compound interest is the same idea applied to money."
+
+**Concept dependency graph.** Prerequisite relationships between concepts, so Feynman can tell you "your understanding of compound interest is held back by a shaky grasp of principal. Reinforce that concept first."
+
+**Deeper learning profile.** The system already detects misconception patterns and confidence gaps across sessions. The next step is surfacing these as a visible Learning Profile node on the graph, showing you a map of not just what you know but how you think.
+
+**Spaced repetition.** Implementing a forgetting curve per concept, where mastery slowly decays over time if a concept goes unreviewed, and scheduling teachback sessions around that decay, to keep concepts fresh.
+
+---
+
+## Tech Stack
+
+**Next.js** · **react-force-graph-2d** · **Claude** · **Deepgram** (STT nova-3 + TTS) · **Voyage AI** (embeddings) · **Redis Cloud** (Search & Query) · **Vercel**
