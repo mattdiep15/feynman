@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import BrainGraph from './BrainGraph';
 import TeachbackPanel from './TeachbackPanel';
 import { statusFromScore } from '@/lib/mastery';
+import { SAMPLE_NOTES } from '@/lib/sampleNotes';
 import type { GraphData, GraphNode } from '@/lib/graph';
 
 export default function Studio() {
@@ -79,6 +80,12 @@ export default function Studio() {
           rows={8}
           style={{ width: '100%', background: '#0b0f17', color: '#e5e7eb', border: '1px solid #374151', borderRadius: 8, padding: 10 }}
         />
+        <button
+          onClick={() => setNotes(SAMPLE_NOTES)}
+          style={{ marginTop: 6, background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontSize: 13, padding: 0 }}
+        >
+          Load sample notes
+        </button>
         <button
           onClick={buildGraph}
           disabled={busy}
