@@ -3,13 +3,14 @@
 import type { BrainMeta } from '@/lib/brains';
 import { META_TABS, type TabId } from './tabDefs';
 import { Logo } from './Logo';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 
 export default function Sidebar({
   brains,
   activeBrainId,
   onSwitchBrain,
   onNewBrain,
+  onDeleteBrain,
   onHome,
   tab,
   onTab,
@@ -18,6 +19,7 @@ export default function Sidebar({
   activeBrainId: string | null;
   onSwitchBrain: (id: string) => void;
   onNewBrain: () => void;
+  onDeleteBrain: (id: string) => void;
   onHome: () => void;
   tab: TabId;
   onTab: (t: TabId) => void;
@@ -40,6 +42,17 @@ export default function Sidebar({
           <span className="brain-icon">{b.icon}</span>
           <span className="brain-name">{b.name}</span>
           <span className="brain-score">{b.avgMastery}%</span>
+          <span
+            className="brain-delete"
+            title="Delete brain"
+            aria-label={`Delete ${b.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteBrain(b.id);
+            }}
+          >
+            <Trash2 width={13} height={13} strokeWidth={1.5} />
+          </span>
         </button>
       ))}
       <button className="add-brain" onClick={onNewBrain}>

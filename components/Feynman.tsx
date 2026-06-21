@@ -163,6 +163,29 @@ export default function Feynman() {
     selectConcept({ id: s.id, name: s.name, summary: s.summary, masteryScore: 0, status: 'untested', val: 1 });
   };
 
+  // Delete a brain entirely (vs. clearBrain, which only empties its concepts).
+  // Resets app state if the deleted brain was the active or focused one.
+  const deleteBrainById = async (id: string) => {
+    const brain = brains.find((b) => b.id === id);
+    if (
+      !window.confirm(
+        `Delete ${brain?.name ?? 'this brain'}? This permanently removes all its concepts, edges, mastery, and memory.`,
+      )
+    )
+      return;
+    await fetch(`/api/brains?brainId=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const remaining = await loadBrains();
+    if (id === activeBrainId) {
+      setSelected(null);
+      setGraph({ nodes: [], links: [] });
+      setActiveBrainId(remaining[0]?.id ?? null);
+      setOverviewFocusId(null);
+      setTab('overview');
+    } else if (id === overviewFocusId) {
+      setOverviewFocusId(null);
+    }
+  };
+
   const clearBrain = async () => {
     if (!activeBrainId) return;
     if (!window.confirm('Clear this brain? Deletes all concepts, edges, mastery, and memory.')) return;
@@ -187,6 +210,7 @@ export default function Feynman() {
         activeBrainId={activeBrainId}
         onSwitchBrain={switchBrain}
         onNewBrain={() => setCreatingBrain(true)}
+        onDeleteBrain={deleteBrainById}
         onHome={goHome}
         tab={tab}
         onTab={setTab}
