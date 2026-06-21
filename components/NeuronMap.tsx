@@ -18,6 +18,8 @@ import {
   HOVER_EXPANDED,
   type NodeStatus,
 } from '@/lib/nodeState';
+import { useSettings } from '@/context/SettingsContext';
+import { GRAPH_ALPHA_DECAY } from '@/lib/settings';
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
   ssr: false,
@@ -27,10 +29,13 @@ const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
 // Cursor influence radius (screen px): nodes within this distance expand from a
 // dot toward their full size, growing most as the cursor lands on them.
 const INFLUENCE_PX = 150;
-// Base/expanded dot sizes. (When the Settings tab lands these come from the
-// user's node-size preference; default to medium until then.)
-const BASE_R = HOVER_BASE.medium;
-const EXPANDED_R = HOVER_EXPANDED.medium;
+
+// Read a CSS custom property (so the canvas background follows the theme).
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
 
 const LEGEND: { status: NodeStatus; label: string }[] = [
   { status: 'untouched', label: 'Untouched' },
@@ -61,6 +66,11 @@ export default function NeuronMap({
   suggestions: Suggestion[];
   onAcceptSuggestion: (s: Suggestion) => void;
 }) {
+  const { settings } = useSettings();
+  // Base/expanded dot sizes from the user's node-size preference.
+  const BASE_R = HOVER_BASE[settings.nodeSize];
+  const EXPANDED_R = HOVER_EXPANDED[settings.nodeSize];
+
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
   // Cursor position in graph coordinates; drives which labels expand. A ref (not
@@ -148,11 +158,13 @@ export default function NeuronMap({
             width={size.w}
             height={size.h}
             graphData={graphData}
-            backgroundColor="#FAFAF9"
+            backgroundColor={cssVar('--bg', '#FAFAF9')}
             linkColor={(l: any) => (l.__suggestion ? '#C4B5FD' : '#E5E7EB')}
             linkWidth={1}
             linkLineDash={(l: any) => (l.__suggestion ? [3, 3] : null)}
             cooldownTicks={120}
+            d3AlphaDecay={GRAPH_ALPHA_DECAY[settings.graphSpeed]}
+            d3VelocityDecay={0.3}
             // Keep the render loop alive after the sim cools so hover tracking
             // (driven by cursorRef, not React state) keeps repainting. Without
             // this the labels freeze once the graph settles (~3s). (R2)

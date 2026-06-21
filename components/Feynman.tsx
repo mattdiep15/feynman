@@ -14,6 +14,7 @@ import NotesPanel from './NotesPanel';
 import Modal from './Modal';
 import NewBrainModal from './NewBrainModal';
 import BrainOverview from './BrainOverview';
+import SettingsTab from './SettingsTab';
 import { TAB_DEFS, type TabId } from './tabDefs';
 
 export default function Feynman() {
@@ -90,6 +91,15 @@ export default function Feynman() {
   const selectConcept = (node: GraphNode) => {
     setSelected(node);
     setTab('chat');
+  };
+
+  // Auto-advance (Settings): after a teachback crosses 70%, jump to the weakest
+  // remaining concept in this brain (lowest mastery, excluding the current one).
+  const autoAdvance = (currentId: string) => {
+    const candidates = graph.nodes.filter((n) => n.id !== currentId);
+    if (!candidates.length) return;
+    const weakest = candidates.reduce((a, b) => (b.masteryScore < a.masteryScore ? b : a));
+    selectConcept(weakest);
   };
 
   const switchBrain = (id: string) => {
@@ -206,8 +216,13 @@ export default function Feynman() {
             />
           </div>
 
+          {/* Settings — always available, no brain required. */}
+          <div className={`panel${h('settings')}`}>
+            <SettingsTab />
+          </div>
+
           {!activeBrain ? (
-            tab !== 'overview' && (
+            tab !== 'overview' && tab !== 'settings' && (
               <div className="panel">
                 <div className="empty-state">
                   <div className="empty-title">No brain yet</div>
@@ -228,6 +243,7 @@ export default function Feynman() {
                     brainId={activeBrain.id}
                     concept={selected}
                     onScored={(id, score) => recolorNode(id, score)}
+                    onAutoAdvance={autoAdvance}
                   />
                 </div>
               ) : (

@@ -11,6 +11,34 @@
   --purple-bg: #f3f0ff;
   --purple-active: #ede9fe;
   --purple-border: #c4b5fd;
+  --font-app: system-ui, -apple-system, sans-serif;
+}
+
+/* Dark theme — remaps the existing tokens (Settings → Dark mode). */
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #f9fafb;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --purple: #7c3aed;
+  --purple-soft: #a78bfa;
+  --purple-bg: #1e1033;
+  --purple-active: #2a1a4a;
+  --purple-border: #4c2a8a;
+}
+/* Surfaces that were hardcoded white/grey → follow the theme in dark mode. */
+[data-theme='dark'] .textarea,
+[data-theme='dark'] .text-input,
+[data-theme='dark'] .icon-option,
+[data-theme='dark'] .modal,
+[data-theme='dark'] .font-card {
+  background: var(--surface);
+}
+[data-theme='dark'] .brain-name {
+  color: var(--text);
 }
 
 * {
@@ -24,7 +52,7 @@ body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-app);
   font-size: 14px;
   font-weight: 400;
 }
@@ -757,4 +785,71 @@ details > summary {
 ::-webkit-scrollbar-thumb {
   background: #e0e0de;
   border-radius: 4px;
+}
+
+/* ---- Settings tab ---- */
+.settings-tab {
+  max-width: 620px;
+}
+.settings-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+.settings-section {
+  padding: 16px 0;
+  border-top: 0.5px solid var(--border);
+}
+.settings-header {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 14px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+}
+.settings-label {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+}
+.settings-sublabel {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  max-width: 380px;
+}
+.font-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.font-card {
+  text-align: left;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.font-card.selected {
+  border: 2px solid var(--purple);
+  background: var(--purple-bg);
+}
+.font-card-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.font-card-preview {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
