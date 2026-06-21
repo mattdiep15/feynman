@@ -8,7 +8,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { masteryToStatus, nodeDotColor, nodeBorder, nodeTextColor } from '@/lib/nodeState';
 import { useSettings } from '@/context/SettingsContext';
-import { GRAPH_ALPHA_DECAY, LABEL_SCALE } from '@/lib/settings';
+import { GRAPH_ALPHA_DECAY } from '@/lib/settings';
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false, loading: () => null });
 
@@ -189,7 +189,7 @@ export default function LandingGraph() {
           for (const node of graphData.nodes as any[]) {
             if (node.x == null) continue;
             const status = masteryToStatus(node.masteryScore);
-            const fontSize = (11 * LABEL_SCALE[settings.labelSize]) / globalScale;
+            const fontSize = 11 / globalScale;
             const L = (node.__r ?? base) + fontSize * 1.1;
             ctx.save();
             ctx.translate(node.x - L * Math.sin(theta), node.y - L * Math.cos(theta));

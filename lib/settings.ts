@@ -12,7 +12,7 @@ export interface Settings {
   theme: Theme;
   font: FontChoice;
   nodeSize: SizeChoice;
-  labelSize: SizeChoice;
+  textSize: SizeChoice;
   graphSpeed: SpeedChoice;
   feedbackDetail: FeedbackDetail;
   voiceSpeed: SpeedChoice;
@@ -23,7 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'light',
   font: 'system',
   nodeSize: 'medium',
-  labelSize: 'medium',
+  textSize: 'medium',
   graphSpeed: 'normal',
   feedbackDetail: 'standard',
   voiceSpeed: 'normal',
@@ -50,9 +50,10 @@ export const FONT_LABELS: Record<FontChoice, string> = {
   'dm-sans': 'DM Sans',
 };
 
-// Multiplier applied to graph label font sizes; medium leaves them unchanged.
-// Spread wide enough that small vs large is unmistakable at a glance.
-export const LABEL_SCALE: Record<SizeChoice, number> = { small: 0.7, medium: 1, large: 1.7 };
+// App-wide UI text scale, applied as the <html> root font-size (medium = 100%).
+// All app text is sized in rem, so this scales the whole UI; the canvas-drawn
+// graph labels use their own px and stay unaffected.
+export const UI_FONT_SCALE: Record<SizeChoice, number> = { small: 0.9, medium: 1, large: 1.15 };
 // Lower alphaDecay = the force graph settles more slowly.
 export const GRAPH_ALPHA_DECAY: Record<SpeedChoice, number> = { slow: 0.01, normal: 0.02, fast: 0.05 };
 // TTS playback rate.

@@ -11,8 +11,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BrainPoint, BrainLink, OverviewNode, OverviewConceptLink } from '@/lib/overview';
 import { brainAnchors } from '@/lib/overview';
 import { masteryToStatus, nodeDotColor, nodeBorder } from '@/lib/nodeState';
-import { useSettings } from '@/context/SettingsContext';
-import { LABEL_SCALE } from '@/lib/settings';
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
   ssr: false,
@@ -65,7 +63,6 @@ export default function BrainOverview({
   onFocusBrain: (id: string | null) => void;
   onOpenBrain: (id: string) => void;
 }) {
-  const { settings } = useSettings();
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
@@ -238,7 +235,7 @@ export default function BrainOverview({
     <>
       <div className="graph-toolbar">
         <span className="graph-toolbar-label">Your brains — semantic overview</span>
-        <span className="muted" style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span className="muted" style={{ fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: 10 }}>
           {loading
             ? 'Mapping…'
             : focusedBrainId
@@ -263,7 +260,7 @@ export default function BrainOverview({
         }}
       >
         {data.brains.length === 0 && !loading && (
-          <div className="muted" style={{ padding: 24, fontSize: 13 }}>
+          <div className="muted" style={{ padding: 24, fontSize: '0.8125rem' }}>
             No brains to map yet. Create a brain and build its neuron map first.
           </div>
         )}
@@ -336,7 +333,7 @@ export default function BrainOverview({
                   // Keep the label upright and directly above the lobe in SCREEN
                   // space even while the field rotates: offset along screen-up and
                   // counter-rotate the glyphs against the CSS wrapper rotation.
-                  const fontSize = (12 * LABEL_SCALE[settings.labelSize]) / globalScale;
+                  const fontSize = 12 / globalScale;
                   const L = R + fontSize * 1.6;
                   ctx.save();
                   ctx.globalAlpha = fade;

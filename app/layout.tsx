@@ -8,8 +8,8 @@ export const metadata = {
   icons: { icon: '/favicon.svg' },
 };
 
-// Apply persisted theme + font before paint to avoid a flash of default settings.
-const THEME_SCRIPT = `(function(){try{var s=JSON.parse(localStorage.getItem('feynman-settings')||'{}');document.documentElement.setAttribute('data-theme',s.theme||'light');var f={system:"system-ui, -apple-system, sans-serif",inter:"'Inter', sans-serif",jetbrains:"'JetBrains Mono', monospace",playfair:"'Playfair Display', serif","dm-sans":"'DM Sans', sans-serif"}[s.font||'system'];if(f)document.documentElement.style.setProperty('--font-app',f);}catch(e){}})();`;
+// Apply persisted theme + font + text scale before paint to avoid a flash of default settings.
+const THEME_SCRIPT = `(function(){try{var s=JSON.parse(localStorage.getItem('feynman-settings')||'{}');document.documentElement.setAttribute('data-theme',s.theme||'light');var f={system:"system-ui, -apple-system, sans-serif",inter:"'Inter', sans-serif",jetbrains:"'JetBrains Mono', monospace",playfair:"'Playfair Display', serif","dm-sans":"'DM Sans', sans-serif"}[s.font||'system'];if(f)document.documentElement.style.setProperty('--font-app',f);var z={small:0.9,medium:1,large:1.15}[s.textSize||'medium'];if(z)document.documentElement.style.fontSize=(z*100)+'%';}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

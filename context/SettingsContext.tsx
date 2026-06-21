@@ -1,7 +1,14 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { DEFAULT_SETTINGS, FONT_STACKS, loadSettings, STORAGE_KEY, type Settings } from '@/lib/settings';
+import {
+  DEFAULT_SETTINGS,
+  FONT_STACKS,
+  UI_FONT_SCALE,
+  loadSettings,
+  STORAGE_KEY,
+  type Settings,
+} from '@/lib/settings';
 
 type SettingsCtx = { settings: Settings; update: (patch: Partial<Settings>) => void };
 
@@ -28,10 +35,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       return next;
     });
 
-  // Apply theme + font globally whenever settings change.
+  // Apply theme + font + UI text scale globally whenever settings change.
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', settings.theme);
     document.documentElement.style.setProperty('--font-app', FONT_STACKS[settings.font]);
+    document.documentElement.style.fontSize = `${UI_FONT_SCALE[settings.textSize] * 100}%`;
   }, [settings]);
 
   return <SettingsContext.Provider value={{ settings, update }}>{children}</SettingsContext.Provider>;

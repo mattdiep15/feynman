@@ -509,8 +509,8 @@ export default function Converse({
             </div>
           </div>
         ))}
-        {phase === 'transcribing' && <div className="muted" style={{ fontSize: 12 }}>Transcribing…</div>}
-        {phase === 'evaluating' && <div className="muted" style={{ fontSize: 12 }}>Evaluating…</div>}
+        {phase === 'transcribing' && <div className="muted" style={{ fontSize: '0.75rem' }}>Transcribing…</div>}
+        {phase === 'evaluating' && <div className="muted" style={{ fontSize: '0.75rem' }}>Evaluating…</div>}
         {error && <div className="error-text">{error}</div>}
         <div ref={endRef} />
       </div>

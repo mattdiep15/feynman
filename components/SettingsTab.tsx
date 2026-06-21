@@ -40,7 +40,7 @@ export default function SettingsTab() {
           label="Dark mode"
           control={
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="muted" style={{ fontSize: 12 }}>
+              <span className="muted" style={{ fontSize: '0.75rem' }}>
                 {settings.theme === 'dark' ? 'On' : 'Off'}
               </span>
               <Toggle
@@ -48,6 +48,22 @@ export default function SettingsTab() {
                 onChange={(v) => update({ theme: v ? 'dark' : 'light' })}
               />
             </div>
+          }
+        />
+
+        <Row
+          label="Text size"
+          sublabel="Scales text throughout the app. The neuron map zooms separately."
+          control={
+            <SegmentedControl
+              value={settings.textSize}
+              onChange={(v) => update({ textSize: v as typeof settings.textSize })}
+              options={[
+                { label: 'Small', value: 'small' },
+                { label: 'Medium', value: 'medium' },
+                { label: 'Large', value: 'large' },
+              ]}
+            />
           }
         />
 
@@ -77,20 +93,6 @@ export default function SettingsTab() {
             <SegmentedControl
               value={settings.nodeSize}
               onChange={(v) => update({ nodeSize: v as typeof settings.nodeSize })}
-              options={[
-                { label: 'Small', value: 'small' },
-                { label: 'Medium', value: 'medium' },
-                { label: 'Large', value: 'large' },
-              ]}
-            />
-          }
-        />
-        <Row
-          label="Text size"
-          control={
-            <SegmentedControl
-              value={settings.labelSize}
-              onChange={(v) => update({ labelSize: v as typeof settings.labelSize })}
               options={[
                 { label: 'Small', value: 'small' },
                 { label: 'Medium', value: 'medium' },

@@ -53,7 +53,7 @@ export default function ProgressTab({ nodes }: { nodes: GraphNode[] }) {
           </div>
         );
       })}
-      {total === 0 && <div className="muted" style={{ fontSize: 13 }}>No concepts yet — build a neuron map first.</div>}
+      {total === 0 && <div className="muted" style={{ fontSize: '0.8125rem' }}>No concepts yet — build a neuron map first.</div>}
     </>
   );
 }

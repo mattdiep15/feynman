@@ -31,7 +31,7 @@ export function SegmentedControl({
               padding: '5px 14px',
               borderRadius: '6px',
               border: 'none',
-              fontSize: '12px',
+              fontSize: '0.75rem',
               fontWeight: selected ? 500 : 400,
               background: selected ? 'var(--bg)' : 'transparent',
               color: selected ? 'var(--purple)' : 'var(--text-secondary)',
