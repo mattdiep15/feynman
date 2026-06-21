@@ -1,0 +1,150 @@
+'use client';
+
+// Rule: react-force-graph-2d must be a dynamic import with ssr:false — a
+// top-level import touches window/canvas and white-screens the app in Next.js.
+import dynamic from 'next/dynamic';
+import { useEffect, useRef, useState } from 'react';
+import type { GraphNode, GraphLink } from '@/lib/graph';
+import {
+  masteryToStatus,
+  nodeFill,
+  nodeBorder,
+  nodeTextColor,
+  nodeRadius,
+  STATUS_PILL,
+  type NodeStatus,
+} from '@/lib/nodeState';
+
+const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
+  ssr: false,
+  loading: () => <div style={{ padding: 16, color: '#9CA3AF' }}>Loading neuron map…</div>,
+});
+
+const LEGEND: { status: NodeStatus; label: string }[] = [
+  { status: 'untouched', label: 'Untouched' },
+  { status: 'weak', label: 'Weak' },
+  { status: 'learning', label: 'Learning' },
+  { status: 'improving', label: 'Improving' },
+  { status: 'mastered', label: 'Mastered' },
+];
+
+export default function NeuronMap({
+  brainName,
+  nodes,
+  links,
+  selectedId,
+  onSelect,
+}: {
+  brainName: string;
+  nodes: GraphNode[];
+  links: GraphLink[];
+  selectedId: string | null;
+  onSelect: (node: GraphNode) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const avg = nodes.length
+    ? Math.round(nodes.reduce((s, n) => s + n.masteryScore, 0) / nodes.length)
+    : 0;
+
+  return (
+    <div className="panel graph-panel">
+      <div className="graph-toolbar">
+        <span className="graph-toolbar-label">{brainName} — neuron map</span>
+        <div className="legend-row">
+          {LEGEND.map(({ status, label }) => (
+            <span className="legend-item" key={status}>
+              <span
+                className="legend-dot"
+                style={{
+                  background: status === 'untouched' ? 'transparent' : nodeFill(status),
+                  border: `1px solid ${nodeBorder(status)}`,
+                }}
+              />
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="graph-area" ref={containerRef}>
+        {size.w > 0 && (
+          <ForceGraph2D
+            width={size.w}
+            height={size.h}
+            graphData={{ nodes, links }}
+            backgroundColor="#FAFAF9"
+            linkColor={() => '#E5E7EB'}
+            linkWidth={1}
+            cooldownTicks={120}
+            nodeCanvasObjectMode={() => 'replace'}
+            nodeCanvasObject={(node: any, ctx, globalScale) => {
+              const status = masteryToStatus(node.masteryScore);
+              const r = nodeRadius(status, node.masteryScore);
+              const fontSize = 12 / globalScale;
+
+              ctx.beginPath();
+              ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+              if (status !== 'untouched') {
+                ctx.fillStyle = nodeFill(status);
+                ctx.fill();
+              }
+              ctx.strokeStyle = node.id === selectedId ? '#7C3AED' : nodeBorder(status);
+              ctx.lineWidth = (node.id === selectedId ? 2.5 : 1.5) / globalScale;
+              ctx.stroke();
+
+              ctx.font = `${status === 'untouched' ? 400 : 500} ${fontSize}px system-ui`;
+              ctx.fillStyle = nodeTextColor(status);
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(node.name, node.x, node.y);
+            }}
+            nodePointerAreaPaint={(node: any, color, ctx) => {
+              const status = masteryToStatus(node.masteryScore);
+              const r = nodeRadius(status, node.masteryScore);
+              ctx.fillStyle = color;
+              ctx.beginPath();
+              ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+              ctx.fill();
+            }}
+            onNodeClick={(n: any) => onSelect(n)}
+          />
+        )}
+        {nodes.length > 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 12,
+              left: 12,
+              background: '#F5F5F4',
+              border: '0.5px solid #E5E7EB',
+              borderRadius: 6,
+              padding: '8px 10px',
+              fontSize: 9,
+              lineHeight: 1.4,
+              pointerEvents: 'none',
+            }}
+          >
+            <div className="muted">Click a neuron to converse about it</div>
+            <div style={{ color: '#7C3AED' }}>
+              {nodes.length} neurons · avg {avg}%
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Re-exported so the Progress tab and others share the status→pill mapping.
+export { STATUS_PILL };
