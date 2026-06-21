@@ -150,7 +150,7 @@ export default function Studio() {
               </summary>
               <p style={{ fontSize: 14 }}>{selected.summary}</p>
             </details>
-            <TeachbackPanel concept={selected} onScored={recolorNode} />
+            <TeachbackPanel key={selected.id} concept={selected} onScored={recolorNode} />
           </div>
         ) : (
           <p
