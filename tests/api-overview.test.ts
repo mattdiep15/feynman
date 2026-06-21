@@ -20,12 +20,20 @@ const zRange = vi.fn(async (key: string) => {
   if (key.includes('math')) return ['mc'];
   return []; // empty brain
 });
-// Vectors: finance and math are similar (high cosine) → should link.
+// Vectors: finance and math are similar (high cosine) → should link. hGet is
+// the embedding read (returnBuffers form: opts, key, field).
 const hGet = vi.fn(async (_opts: unknown, key: string) =>
   key.includes('finance') ? f32([1, 0, 0]) : f32([0.9, 0.1, 0]),
 );
+// Concept fields per node, and intra-brain edges (none here).
+const hmGet = vi.fn(async (key: string): Promise<(string | null)[]> =>
+  key.includes('finance')
+    ? ['Compound Interest', 'grows', '90', 'learned']
+    : ['Derivatives', 'rates', '40', 'shaky'],
+);
+const sMembers = vi.fn(async () => [] as string[]);
 
-vi.mock('@/lib/redis', () => ({ getRedis: async () => ({ zRange, hGet }) }));
+vi.mock('@/lib/redis', () => ({ getRedis: async () => ({ zRange, hGet, hmGet, sMembers }) }));
 
 import { GET } from '@/app/api/overview/route';
 
@@ -41,5 +49,15 @@ describe('GET /api/overview', () => {
     expect(json.links[0]).toMatchObject({ source: 'finance', target: 'math' });
     expect(json.links[0].score).toBeGreaterThan(0.5);
     expect(json.links[0].score).toBeLessThanOrEqual(1);
+  });
+
+  it('returns concept nodes namespaced by brain (R1)', async () => {
+    const res = await GET();
+    const json = await res.json();
+
+    // one node per concept in the two non-empty brains, ids namespaced by brain
+    expect(json.nodes.map((n: any) => n.id).sort()).toEqual(['finance::fc', 'math::mc']);
+    const fc = json.nodes.find((n: any) => n.id === 'finance::fc');
+    expect(fc).toMatchObject({ conceptId: 'fc', brainId: 'finance', name: 'Compound Interest', masteryScore: 90 });
   });
 });
