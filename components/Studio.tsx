@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import BrainGraph from './BrainGraph';
+import TeachbackPanel from './TeachbackPanel';
+import { statusFromScore } from '@/lib/mastery';
 import type { GraphData, GraphNode } from '@/lib/graph';
 
 export default function Studio() {
@@ -19,6 +21,23 @@ export default function Studio() {
   useEffect(() => {
     loadGraph();
   }, [loadGraph]);
+
+  // Optimistic recolor: mutate the node object in place so react-force-graph
+  // keeps its position (no re-layout) while React re-renders on a new array.
+  const recolorNode = useCallback((id: string, masteryScore: number, status: string) => {
+    setGraph((g) => {
+      const node = g.nodes.find((n) => n.id === id);
+      if (node) {
+        node.masteryScore = masteryScore;
+        node.status = status || statusFromScore(masteryScore);
+        node.val = masteryScore / 20 + 1;
+      }
+      return { nodes: [...g.nodes], links: g.links };
+    });
+    setSelected((s) =>
+      s && s.id === id ? { ...s, masteryScore, status: status || statusFromScore(masteryScore) } : s,
+    );
+  }, []);
 
   const buildGraph = async () => {
     if (!notes.trim()) return;
@@ -63,6 +82,7 @@ export default function Studio() {
               {selected.status} · {selected.masteryScore}/100
             </div>
             <p style={{ fontSize: 14 }}>{selected.summary}</p>
+            <TeachbackPanel concept={selected} onScored={recolorNode} />
           </div>
         )}
       </aside>
