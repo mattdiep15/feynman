@@ -280,6 +280,7 @@ export default function Feynman() {
               {hasConcepts ? (
                 <div className={`panel graph-panel${h('graph')}`}>
                   <NeuronMap
+                    key={activeBrain.id}
                     brainName={activeBrain.name}
                     nodes={graph.nodes}
                     links={graph.links}

@@ -10,7 +10,6 @@ import {
   masteryToStatus,
   nodeFill,
   nodeBorder,
-  nodeTextColor,
   nodeDotColor,
   hoverScale,
   expandedRadius,
@@ -35,6 +34,66 @@ function cssVar(name: string, fallback: string): string {
   if (typeof window === 'undefined') return fallback;
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return v || fallback;
+}
+
+// Hand-rolled collision force (no d3-force dependency — same authoring style as
+// BrainOverview's cluster force). Nudges overlapping nodes apart so the resting
+// layout never stacks neurons on top of each other. (R6)
+function collideForce(radius: number, strength = 0.9) {
+  let nodes: any[] = [];
+  const min = radius * 2;
+  const force = (alpha: number) => {
+    for (let i = 0; i < nodes.length; i++) {
+      const a = nodes[i];
+      for (let j = i + 1; j < nodes.length; j++) {
+        const b = nodes[j];
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist === 0) {
+          dx = (j - i) * 0.5;
+          dy = 0.5;
+          dist = Math.hypot(dx, dy);
+        }
+        if (dist < min) {
+          const push = ((min - dist) / dist) * strength * alpha;
+          const ox = dx * push;
+          const oy = dy * push;
+          a.vx -= ox;
+          a.vy -= oy;
+          b.vx += ox;
+          b.vy += oy;
+        }
+      }
+    }
+  };
+  force.initialize = (n: any[]) => {
+    nodes = n;
+  };
+  return force;
+}
+
+// Label with a rounded background-colored halo so it stays readable over the
+// graph in both themes (halo reads --bg, not a hardcoded hex). (R6)
+function drawLabel(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  fontSize: number,
+  globalScale: number,
+  fill: string,
+  halo: string,
+) {
+  ctx.font = `600 ${fontSize}px system-ui`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 4 / globalScale;
+  ctx.strokeStyle = halo;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = fill;
+  ctx.fillText(text, x, y);
 }
 
 const LEGEND: { status: NodeStatus; label: string }[] = [
@@ -70,6 +129,13 @@ export default function NeuronMap({
   // Base/expanded dot sizes from the user's node-size preference.
   const BASE_R = HOVER_BASE[settings.nodeSize];
   const EXPANDED_R = HOVER_EXPANDED[settings.nodeSize];
+  // Collision radius: comfortable resting spacing that also covers most of the
+  // hover expansion, so nodes don't overlap.
+  const COLLIDE_R = Math.max(EXPANDED_R * 0.6, BASE_R + 6);
+
+  // Theme-aware colors read once per theme change (not per node per frame).
+  const haloColor = useMemo(() => cssVar('--bg', '#FAFAF9'), [settings.theme]);
+  const untouchedText = useMemo(() => cssVar('--text', '#111827'), [settings.theme]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
@@ -77,6 +143,8 @@ export default function NeuronMap({
   // state) so per-frame label drawing reads it without re-rendering on mousemove.
   const cursorRef = useRef<{ x: number; y: number } | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // Frame all nodes once per mount/show; not after manual drags. (R6)
+  const didFitRef = useRef(false);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -87,6 +155,13 @@ export default function NeuronMap({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // When the panel becomes visible again (tab show: 0 → real size remounts the
+  // inner graph), allow one fresh zoom-to-fit.
+  const visible = size.w > 0 && size.h > 0;
+  useEffect(() => {
+    if (visible) didFitRef.current = false;
+  }, [visible]);
 
   const avg = nodes.length
     ? Math.round(nodes.reduce((s, n) => s + n.masteryScore, 0) / nodes.length)
@@ -110,6 +185,15 @@ export default function NeuronMap({
     }),
     [nodes, links, suggestions, suggestionNodes],
   );
+
+  // Register the collision force when the node set changes (not on recolor), and
+  // reheat so it resolves any overlap. (R6)
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg || graphData.nodes.length === 0) return;
+    fg.d3Force('collide', collideForce(COLLIDE_R));
+    fg.d3ReheatSimulation?.();
+  }, [graphData.nodes.length, COLLIDE_R]);
 
   return (
     <>
@@ -169,34 +253,30 @@ export default function NeuronMap({
             // (driven by cursorRef, not React state) keeps repainting. Without
             // this the labels freeze once the graph settles (~3s). (R2)
             autoPauseRedraw={false}
+            // Frame all nodes once the layout settles (zoom to fit on load), but
+            // not after a manual drag — so dragging a node never blanks the view. (R6)
+            onEngineStop={() => {
+              if (!didFitRef.current) {
+                fgRef.current?.zoomToFit(400, 60);
+                didFitRef.current = true;
+              }
+            }}
+            // Pin a node where it's dropped so the layout doesn't fly apart after
+            // a drag (a cause of the "everything disappears" report). (R6)
+            onNodeDragEnd={(n: any) => {
+              n.fx = n.x;
+              n.fy = n.y;
+            }}
             nodeCanvasObjectMode={() => 'replace'}
             nodeCanvasObject={(node: any, ctx, globalScale) => {
-              const fontSize = 12 / globalScale;
-
-              // Suggestion neuron: dotted purple outline, always labelled with a
-              // "+" to invite the student to add it to their brain.
-              if (node.__suggestion) {
-                const sr = 9;
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, sr, 0, 2 * Math.PI);
-                ctx.setLineDash([2, 2]);
-                ctx.strokeStyle = '#C4B5FD';
-                ctx.lineWidth = 1.5 / globalScale;
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                ctx.font = `500 ${fontSize}px system-ui`;
-                ctx.fillStyle = '#7C3AED';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(`+ ${node.name}`, node.x, node.y - sr - fontSize);
-                return;
-              }
-
-              const status = masteryToStatus(node.masteryScore);
+              // Skip any node without finite coords (e.g. mid-drag), so a single
+              // bad node can't break the frame. (R6)
+              if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
+              const fontSize = 13 / globalScale;
 
               // Expansion factor: 1 for the selected node, otherwise grows as the
               // cursor approaches (screen distance = graph distance × globalScale).
+              // Shared by real and suggestion nodes so they read as the same size.
               const cursor = cursorRef.current;
               const t =
                 node.id === selectedId
@@ -209,6 +289,25 @@ export default function NeuronMap({
                     : 0;
               const r = expandedRadius(t, BASE_R, EXPANDED_R);
 
+              // Suggestion neuron: same base size as a real node, dotted purple
+              // outline + a "+" affordance to invite adding it to the brain.
+              if (node.__suggestion) {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+                ctx.setLineDash([2, 2]);
+                ctx.strokeStyle = '#C4B5FD';
+                ctx.lineWidth = 1.5 / globalScale;
+                ctx.stroke();
+                ctx.setLineDash([]);
+                if (t > 0.25) {
+                  ctx.globalAlpha = (t - 0.25) / 0.75;
+                  drawLabel(ctx, `+ ${node.name}`, node.x, node.y, fontSize, globalScale, '#7C3AED', haloColor);
+                  ctx.globalAlpha = 1;
+                }
+                return;
+              }
+
+              const status = masteryToStatus(node.masteryScore);
               ctx.beginPath();
               ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
               if (status !== 'untouched') {
@@ -220,26 +319,19 @@ export default function NeuronMap({
               ctx.stroke();
 
               // Once expanded enough, fill the node with its label, fading in with
-              // t. Drawn with a background-colored halo so it stays readable.
+              // t. White on a solid status dot; theme text on hollow untouched.
               if (t > 0.25) {
                 ctx.globalAlpha = (t - 0.25) / 0.75;
-                ctx.font = `500 ${fontSize}px system-ui`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.lineWidth = 3 / globalScale;
-                ctx.strokeStyle = '#FAFAF9';
-                ctx.strokeText(node.name, node.x, node.y);
-                ctx.fillStyle = status === 'untouched' ? nodeTextColor(status) : '#FFFFFF';
-                ctx.fillText(node.name, node.x, node.y);
+                const fill = status === 'untouched' ? untouchedText : '#FFFFFF';
+                drawLabel(ctx, node.name, node.x, node.y, fontSize, globalScale, fill, haloColor);
                 ctx.globalAlpha = 1;
               }
             }}
             nodePointerAreaPaint={(node: any, color, ctx) => {
               // Generous, fixed hit area so the small dots stay easy to click.
-              const r = node.__suggestion ? 9 : 12;
               ctx.fillStyle = color;
               ctx.beginPath();
-              ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+              ctx.arc(node.x, node.y, 12, 0, 2 * Math.PI);
               ctx.fill();
             }}
             onNodeClick={(n: any) => (n.__suggestion ? onAcceptSuggestion(n) : onSelect(n))}
