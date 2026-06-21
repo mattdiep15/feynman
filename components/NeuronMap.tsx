@@ -356,8 +356,8 @@ export default function NeuronMap({
               background: '#F5F5F4',
               border: '0.5px solid #E5E7EB',
               borderRadius: 6,
-              padding: '8px 10px',
-              fontSize: 9,
+              padding: '9px 12px',
+              fontSize: 11,
               lineHeight: 1.4,
               pointerEvents: 'none',
             }}

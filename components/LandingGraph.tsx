@@ -5,7 +5,7 @@
 // wrapper (the 2D graph has no camera). Honors the user's node-size + graph-speed
 // settings (shared rule with the main neuron map).
 import dynamic from 'next/dynamic';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { masteryToStatus, nodeDotColor, nodeBorder, nodeTextColor } from '@/lib/nodeState';
 import { useSettings } from '@/context/SettingsContext';
 import { GRAPH_ALPHA_DECAY } from '@/lib/settings';
@@ -115,6 +115,13 @@ export default function LandingGraph() {
 
   const base = BASE_BY_SIZE[settings.nodeSize];
 
+  // Stable graph objects so the sim keeps positions — and so the label pass can
+  // read each node's settled x/y.
+  const graphData = useMemo(
+    () => ({ nodes: DEMO_NODES.map((n) => ({ ...n })), links: DEMO_LINKS.map((l) => ({ ...l })) }),
+    [],
+  );
+
   if (size.w === 0) return null;
 
   return (
@@ -126,7 +133,7 @@ export default function LandingGraph() {
         ref={fgRef}
         width={size.w}
         height={size.h}
-        graphData={{ nodes: DEMO_NODES.map((n) => ({ ...n })), links: DEMO_LINKS.map((l) => ({ ...l })) }}
+        graphData={graphData}
         backgroundColor="rgba(0,0,0,0)"
         d3AlphaDecay={GRAPH_ALPHA_DECAY[settings.graphSpeed]}
         d3VelocityDecay={0.3}
@@ -168,13 +175,30 @@ export default function LandingGraph() {
             ctx.lineWidth = 1 / globalScale;
             ctx.stroke();
           }
-          // Labels always visible on the landing — decorative.
-          const fontSize = 11 / globalScale;
-          ctx.font = `500 ${fontSize}px system-ui`;
-          ctx.fillStyle = nodeTextColor(status);
+          // Stash the drawn radius so the label pass can sit just above the node.
+          node.__r = r;
+        }}
+        // Draw labels in a post pass (after every node) so they stay ON TOP of the
+        // nodes, and keep them UPRIGHT and directly above each node in SCREEN space
+        // even as the field rotates: offset along screen-up and counter-rotate the
+        // glyphs against the CSS wrapper rotation.
+        onRenderFramePost={(ctx: CanvasRenderingContext2D, globalScale: number) => {
+          const theta = (rotationRef.current * Math.PI) / 180;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(node.name, node.x, node.y - r - fontSize * 0.6);
+          for (const node of graphData.nodes as any[]) {
+            if (node.x == null) continue;
+            const status = masteryToStatus(node.masteryScore);
+            const fontSize = 11 / globalScale;
+            const L = (node.__r ?? base) + fontSize * 1.1;
+            ctx.save();
+            ctx.translate(node.x - L * Math.sin(theta), node.y - L * Math.cos(theta));
+            ctx.rotate(-theta);
+            ctx.font = `500 ${fontSize}px system-ui`;
+            ctx.fillStyle = nodeTextColor(status);
+            ctx.fillText(node.name, 0, 0);
+            ctx.restore();
+          }
         }}
       />
     </div>
