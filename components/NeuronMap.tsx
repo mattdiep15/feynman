@@ -34,6 +34,7 @@ export default function NeuronMap({
   selectedId,
   onSelect,
   onClear,
+  onAddNotes,
 }: {
   brainName: string;
   nodes: GraphNode[];
@@ -41,6 +42,7 @@ export default function NeuronMap({
   selectedId: string | null;
   onSelect: (node: GraphNode) => void;
   onClear: () => void;
+  onAddNotes: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -76,6 +78,9 @@ export default function NeuronMap({
               {label}
             </span>
           ))}
+          <button className="btn-ghost" onClick={onAddNotes} title="Add more notes to this brain">
+            + Add notes
+          </button>
           <button className="btn-ghost" onClick={onClear} title="Clear this brain">
             Clear
           </button>
