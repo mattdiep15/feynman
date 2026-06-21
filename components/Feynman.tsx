@@ -11,6 +11,7 @@ import ProgressTab from './ProgressTab';
 import HowItWorks from './HowItWorks';
 import NotesPanel from './NotesPanel';
 import Modal from './Modal';
+import NewBrainModal from './NewBrainModal';
 import { TAB_DEFS, type TabId } from './tabDefs';
 
 export default function Feynman() {
@@ -21,6 +22,7 @@ export default function Feynman() {
   const [tab, setTab] = useState<TabId>('chat');
   const [building, setBuilding] = useState(false);
   const [addingNotes, setAddingNotes] = useState(false);
+  const [creatingBrain, setCreatingBrain] = useState(false);
 
   const loadBrains = useCallback(async () => {
     const res = await fetch('/api/brains');
@@ -75,16 +77,8 @@ export default function Feynman() {
     if (id !== activeBrainId) setActiveBrainId(id);
   };
 
-  const newBrain = async () => {
-    const name = window.prompt('Name your new brain (e.g. Math, Biology)');
-    if (!name?.trim()) return;
-    const res = await fetch('/api/brains', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() }),
-    });
-    if (!res.ok) return;
-    const { brain } = await res.json();
+  const handleBrainCreated = async (brain: BrainMeta) => {
+    setCreatingBrain(false);
     await loadBrains();
     setActiveBrainId(brain.id);
     setTab('graph');
@@ -134,7 +128,7 @@ export default function Feynman() {
         brains={brains}
         activeBrainId={activeBrainId}
         onSwitchBrain={switchBrain}
-        onNewBrain={newBrain}
+        onNewBrain={() => setCreatingBrain(true)}
         tab={tab}
         onTab={setTab}
       />
@@ -158,7 +152,7 @@ export default function Feynman() {
               <div className="empty-state">
                 <div className="empty-title">No brain yet</div>
                 <div className="empty-body">Create a brain to start building your neuron map.</div>
-                <button className="btn-primary" onClick={newBrain}>
+                <button className="btn-primary" onClick={() => setCreatingBrain(true)}>
                   + New brain
                 </button>
               </div>
@@ -222,6 +216,10 @@ export default function Feynman() {
           </div>
           <NotesPanel onBuild={addNotes} busy={building} compact />
         </Modal>
+      )}
+
+      {creatingBrain && (
+        <NewBrainModal onClose={() => setCreatingBrain(false)} onCreated={handleBrainCreated} />
       )}
     </div>
   );
