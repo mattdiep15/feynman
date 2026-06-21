@@ -103,21 +103,21 @@ export default function Feynman() {
   };
 
   const switchBrain = (id: string) => {
-    if (id !== activeBrainId) setActiveBrainId(id);
-    // Picking a brain from the left menu focuses its lobe in the overview.
+    setActiveBrainId(id);
     setOverviewFocusId(id);
+    // Picking a brain at the left focuses its lobe and hands off to its neuron
+    // map. From the overview, let the focus zoom play first; otherwise jump. (R3)
+    if (tab === 'overview') {
+      window.setTimeout(() => setTab('graph'), 650);
+    } else {
+      setTab('graph');
+    }
   };
 
   // Logo / home: return to the framed, unfocused overview.
   const goHome = () => {
     setTab('overview');
     setOverviewFocusId(null);
-  };
-
-  // From the overview dashboard: open a brain and jump into its neuron map.
-  const openBrain = (id: string) => {
-    setActiveBrainId(id);
-    setTab('graph');
   };
 
   const handleBrainCreated = async (brain: BrainMeta) => {
@@ -236,7 +236,6 @@ export default function Feynman() {
               active={tab === 'overview'}
               focusedBrainId={overviewFocusId}
               onFocusBrain={setOverviewFocusId}
-              onOpenBrain={openBrain}
             />
           </div>
 
