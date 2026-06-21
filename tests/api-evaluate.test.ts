@@ -17,7 +17,12 @@ const ftSearch = vi.fn(async (_idx: string, query: string) =>
         ],
       },
 );
-const hmGet = vi.fn(async () => ['Compound Interest', 'grows over time']);
+// Two reads per request: name/summary, then masteryScore/attempts (decay input).
+// hmGet returns (string | null)[] — missing fields come back as null.
+const hmGet = vi.fn(
+  async (_key: string, fields: string[]): Promise<(string | null)[]> =>
+    fields.includes('masteryScore') ? ['40', '2'] : ['Compound Interest', 'grows over time'],
+);
 const hGet = vi.fn(async () => null);
 const hSet = vi.fn(async () => 1);
 const zAdd = vi.fn(async () => 1);
@@ -58,6 +63,10 @@ beforeEach(() => {
   hSet.mockClear();
   zAdd.mockClear();
   ftSearch.mockClear();
+  hmGet.mockClear();
+  hmGet.mockImplementation(async (_key: string, fields: string[]) =>
+    fields.includes('masteryScore') ? ['40', '2'] : ['Compound Interest', 'grows over time'],
+  );
 });
 
 describe('POST /api/evaluate', () => {
@@ -77,22 +86,43 @@ describe('POST /api/evaluate', () => {
       expect.objectContaining({ DIALECT: 2, SORTBY: 'score' }),
     );
 
-    // mastery persisted (HSET status derived from score 55 → shaky) + ZADD
+    // Decay blend: prior 40 (2 attempts) + turn 55 → 0.4*55 + 0.6*40 = 46.
+    // Persisted blended score, derived status, and bumped attempt count.
     expect(hSet).toHaveBeenCalledWith('concept:demo:finance:compound_interest', {
-      masteryScore: '55',
+      masteryScore: '46',
       status: 'shaky',
+      attempts: '3',
     });
-    expect(zAdd).toHaveBeenCalledWith('mastery:demo:finance', { score: 55, value: 'compound_interest' });
+    expect(zAdd).toHaveBeenCalledWith('mastery:demo:finance', { score: 46, value: 'compound_interest' });
 
     // misconceptions appended to long-term memory
     expect(hSet).toHaveBeenCalledWith('memory:longterm:demo:finance', {
       misconceptions: JSON.stringify(['thinks interest is linear']),
     });
 
-    // response shape + target excluded from related
-    expect(json.masteryScore).toBe(55);
+    // response shape: blended masteryScore + standalone turnScore, target excluded
+    expect(json.masteryScore).toBe(46);
+    expect(json.turnScore).toBe(55);
     expect(json.status).toBe('shaky');
     expect(json.related.map((r: any) => r.id)).toEqual(['principal']);
+  });
+
+  it('counts the first attempt in full (no prior history to blend)', async () => {
+    // Fresh concept: score 0, no attempts recorded yet.
+    hmGet.mockImplementation(async (_key: string, fields: string[]) =>
+      fields.includes('masteryScore') ? ['0', null] : ['Compound Interest', 'grows over time'],
+    );
+
+    const res = await POST(post({ conceptId: 'compound_interest', transcript: 'it grows' }));
+    const json = await res.json();
+
+    // turn score 55 applied directly; attempts initialized to 1.
+    expect(json.masteryScore).toBe(55);
+    expect(hSet).toHaveBeenCalledWith('concept:demo:finance:compound_interest', {
+      masteryScore: '55',
+      status: 'shaky',
+      attempts: '1',
+    });
   });
 
   it('runs a cross-brain search and returns bridges from other brains (Feature 4)', async () => {
