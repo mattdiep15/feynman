@@ -2,6 +2,7 @@
 // parameterized from one place) and the brain registry helpers that read/write
 // the per-user list of brains.
 import { DEFAULT_BRAIN_ID } from './constants';
+import { normalizeIconKey } from './brainIcons';
 import type { getRedis } from './redis';
 
 type Redis = Awaited<ReturnType<typeof getRedis>>;
@@ -57,7 +58,7 @@ export async function ensureDefaultBrain(redis: Redis, userId: string): Promise<
     await redis.sAdd(brainsSetKey(userId), DEFAULT_BRAIN_ID);
     await redis.hSet(brainKey(userId, DEFAULT_BRAIN_ID), {
       name: 'Personal Finance',
-      icon: '💰',
+      icon: 'wallet',
       createdAt: '0',
     });
   }
@@ -74,7 +75,7 @@ export async function listBrains(redis: Redis, userId: string): Promise<BrainMet
       const avgMastery = conceptCount
         ? Math.round(scored.reduce((sum, m) => sum + m.score, 0) / conceptCount)
         : 0;
-      return { id, name: meta.name || id, icon: meta.icon || '🧠', conceptCount, avgMastery };
+      return { id, name: meta.name || id, icon: normalizeIconKey(meta.icon), conceptCount, avgMastery };
     }),
   );
   return brains.sort((a, b) => a.name.localeCompare(b.name));
@@ -105,6 +106,16 @@ export async function renameBrain(
   name: string,
 ): Promise<void> {
   await redis.hSet(brainKey(userId, brainId), { name });
+}
+
+// Change a brain's icon (display only — id/slug is unchanged).
+export async function setBrainIcon(
+  redis: Redis,
+  userId: string,
+  brainId: string,
+  icon: string,
+): Promise<void> {
+  await redis.hSet(brainKey(userId, brainId), { icon });
 }
 
 // Generalized reset: wipe one brain's data and drop it from the registry.

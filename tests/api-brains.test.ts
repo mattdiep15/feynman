@@ -21,8 +21,9 @@ describe('GET /api/brains', () => {
   it('lists brains with live conceptCount + avgMastery', async () => {
     const res = await GET();
     const { brains } = await res.json();
+    // Legacy emoji icons are normalized to their lucide key (💰 → wallet).
     expect(brains).toEqual([
-      { id: 'finance', name: 'Personal Finance', icon: '💰', conceptCount: 2, avgMastery: 40 },
+      { id: 'finance', name: 'Personal Finance', icon: 'wallet', conceptCount: 2, avgMastery: 40 },
     ]);
   });
 });
@@ -32,12 +33,12 @@ describe('POST /api/brains', () => {
     const req = new Request('http://t/api/brains', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Math 101', icon: '🧮' }),
+      body: JSON.stringify({ name: 'Math 101', icon: 'ruler' }),
     });
     const res = await POST(req);
     expect(res.status).toBe(201);
     const { brain } = await res.json();
-    expect(brain).toMatchObject({ id: 'math-101', name: 'Math 101', icon: '🧮' });
+    expect(brain).toMatchObject({ id: 'math-101', name: 'Math 101', icon: 'ruler' });
     expect(sAdd).toHaveBeenCalledWith('brains:demo', 'math-101');
   });
 

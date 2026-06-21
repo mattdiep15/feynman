@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import Modal from './Modal';
+import IconPicker from './IconPicker';
+import { DEFAULT_BRAIN_ICON } from '@/lib/brainIcons';
 import type { BrainMeta } from '@/lib/brains';
 
-// A small fixed palette keeps the picker on-theme without a full emoji keyboard.
-const ICONS = ['🧠', '💰', '📐', '🧬', '⚛️', '📚', '🎨', '🏛️', '🎵', '⚙️', '🌍', '💡'];
 const MAX_NAME = 40; // matches the slug cap in lib/brains.slugify
 
 export default function NewBrainModal({
@@ -16,7 +16,7 @@ export default function NewBrainModal({
   onCreated: (brain: BrainMeta) => void;
 }) {
   const [name, setName] = useState('');
-  const [icon, setIcon] = useState(ICONS[0]);
+  const [icon, setIcon] = useState<string>(DEFAULT_BRAIN_ICON);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,19 +65,7 @@ export default function NewBrainModal({
       <label className="field-label" style={{ marginTop: 14 }}>
         Icon
       </label>
-      <div className="icon-grid">
-        {ICONS.map((emoji) => (
-          <button
-            key={emoji}
-            type="button"
-            className={`icon-option${emoji === icon ? ' selected' : ''}`}
-            onClick={() => setIcon(emoji)}
-            disabled={busy}
-          >
-            {emoji}
-          </button>
-        ))}
-      </div>
+      <IconPicker value={icon} onChange={setIcon} disabled={busy} />
 
       {error && <div className="form-error">{error}</div>}
 

@@ -116,11 +116,27 @@ export default function BrainOverview({
     };
   }, [active]);
 
-  // Stable graph data (object identity preserved so the sim keeps positions).
-  const graphData = useMemo(
-    () => ({ nodes: data.nodes.map((n) => ({ ...n })), links: data.conceptLinks.map((l) => ({ ...l })) }),
-    [data],
-  );
+  // Stable graph data. Seed each node's initial position inside its brain's
+  // anchor lobe (deterministic golden-angle spiral) so clusters start visually
+  // separated instead of piling at the origin and slowly exploding apart — which
+  // is what made the first boot from the landing page look like overlaid circles,
+  // and made the layout differ every visit. (2)
+  const graphData = useMemo(() => {
+    const radius = Math.max(140, data.brains.length * 60);
+    const anchors = brainAnchors(
+      data.brains.map((b) => b.id),
+      radius,
+    );
+    const seen: Record<string, number> = {};
+    const nodes = data.nodes.map((n) => {
+      const a = anchors[n.brainId] ?? { x: 0, y: 0 };
+      const k = (seen[n.brainId] = (seen[n.brainId] ?? 0) + 1);
+      const ang = k * 2.399963; // golden angle — even fill, no clumping
+      const r = 6 * Math.sqrt(k);
+      return { ...n, x: a.x + r * Math.cos(ang), y: a.y + r * Math.sin(ang) };
+    });
+    return { nodes, links: data.conceptLinks.map((l) => ({ ...l })) };
+  }, [data]);
 
   // Register the cluster force + loosen charge once data is in. Anchors sit on a
   // plain circle (flat field — no perspective tilt).

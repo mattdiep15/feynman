@@ -13,6 +13,7 @@ import HowItWorks from './HowItWorks';
 import NotesPanel from './NotesPanel';
 import Modal from './Modal';
 import NewBrainModal from './NewBrainModal';
+import IconEditModal from './IconEditModal';
 import BrainOverview from './BrainOverview';
 import SettingsTab from './SettingsTab';
 import { PRIMARY_TABS, type TabId } from './tabDefs';
@@ -29,6 +30,8 @@ export default function Feynman() {
   const [building, setBuilding] = useState(false);
   const [addingNotes, setAddingNotes] = useState(false);
   const [creatingBrain, setCreatingBrain] = useState(false);
+  // Brain whose icon is being changed (null = picker closed).
+  const [editingIconId, setEditingIconId] = useState<string | null>(null);
 
   const loadBrains = useCallback(async () => {
     const res = await fetch('/api/brains');
@@ -199,6 +202,17 @@ export default function Feynman() {
     await loadBrains();
   };
 
+  // Change an existing brain's icon (display only; id/slug unchanged).
+  const setBrainIcon = async (id: string, icon: string) => {
+    await fetch('/api/brains', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ brainId: id, icon }),
+    });
+    await loadBrains();
+    setEditingIconId(null);
+  };
+
   const clearBrain = async () => {
     if (!activeBrainId) return;
     if (!window.confirm('Clear this brain? Deletes all concepts, edges, mastery, and memory.')) return;
@@ -225,6 +239,7 @@ export default function Feynman() {
         onNewBrain={() => setCreatingBrain(true)}
         onDeleteBrain={deleteBrainById}
         onRenameBrain={renameBrainById}
+        onEditIcon={setEditingIconId}
         onHome={goHome}
         tab={tab}
         onTab={setTab}
@@ -340,6 +355,15 @@ export default function Feynman() {
 
       {creatingBrain && (
         <NewBrainModal onClose={() => setCreatingBrain(false)} onCreated={handleBrainCreated} />
+      )}
+
+      {editingIconId && (
+        <IconEditModal
+          brainName={brains.find((b) => b.id === editingIconId)?.name ?? 'brain'}
+          current={brains.find((b) => b.id === editingIconId)?.icon ?? ''}
+          onClose={() => setEditingIconId(null)}
+          onSave={(icon) => setBrainIcon(editingIconId, icon)}
+        />
       )}
     </div>
   );

@@ -3,7 +3,8 @@
 import type { BrainMeta } from '@/lib/brains';
 import { META_TABS, type TabId } from './tabDefs';
 import { Logo } from './Logo';
-import { Plus, Trash2, Pencil, Brain } from 'lucide-react';
+import { resolveBrainIcon } from './brainIcons';
+import { Plus, Trash2, Pencil } from 'lucide-react';
 
 export default function Sidebar({
   brains,
@@ -12,6 +13,7 @@ export default function Sidebar({
   onNewBrain,
   onDeleteBrain,
   onRenameBrain,
+  onEditIcon,
   onHome,
   tab,
   onTab,
@@ -22,6 +24,7 @@ export default function Sidebar({
   onNewBrain: () => void;
   onDeleteBrain: (id: string) => void;
   onRenameBrain: (id: string) => void;
+  onEditIcon: (id: string) => void;
   onHome: () => void;
   tab: TabId;
   onTab: (t: TabId) => void;
@@ -35,14 +38,25 @@ export default function Sidebar({
       </div>
 
       <div className="brain-label">My brains</div>
-      {brains.map((b) => (
+      {brains.map((b) => {
+        const Icon = resolveBrainIcon(b.icon);
+        return (
         <button
           key={b.id}
           className={`brain-item${b.id === activeBrainId ? ' active' : ''}`}
           onClick={() => onSwitchBrain(b.id)}
         >
-          <span className="brain-icon">
-            <Brain width={16} height={16} strokeWidth={1.6} />
+          <span
+            className="brain-icon"
+            role="button"
+            title="Change icon"
+            aria-label={`Change ${b.name} icon`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditIcon(b.id);
+            }}
+          >
+            <Icon width={16} height={16} strokeWidth={1.6} />
           </span>
           <span className="brain-name">{b.name}</span>
           <span className="brain-score">{b.avgMastery}%</span>
@@ -69,7 +83,8 @@ export default function Sidebar({
             <Trash2 width={13} height={13} strokeWidth={1.5} />
           </span>
         </button>
-      ))}
+        );
+      })}
       <button className="add-brain" onClick={onNewBrain}>
         <Plus width={14} height={14} strokeWidth={1.5} />
         New brain
