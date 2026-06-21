@@ -52,6 +52,16 @@ export default function Studio() {
     if (node) setSelected(node);
   };
 
+  const clearBrain = async () => {
+    if (!confirm('Clear the entire brain? This deletes all concepts, edges, mastery, and memory.')) {
+      return;
+    }
+    await fetch('/api/reset', { method: 'POST' });
+    setGraph({ nodes: [], links: [] });
+    setSelected(null);
+    setRefresher([]);
+  };
+
   const buildGraph = async () => {
     if (!notes.trim()) return;
     setBusy(true);
@@ -70,7 +80,16 @@ export default function Studio() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', height: '100vh' }}>
       <aside style={{ padding: 20, borderRight: '1px solid #1f2937', overflowY: 'auto' }}>
-        <h1 style={{ marginTop: 0 }}>Feynman</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <h1 style={{ marginTop: 0 }}>Feynman</h1>
+          <button
+            onClick={clearBrain}
+            title="Delete all concepts, edges, mastery and memory"
+            style={{ background: 'none', border: '1px solid #7f1d1d', color: '#fca5a5', borderRadius: 6, cursor: 'pointer', fontSize: 12, padding: '4px 8px', height: 'fit-content' }}
+          >
+            Clear brain
+          </button>
+        </div>
         <p style={{ color: '#9ca3af', fontSize: 14 }}>Personal Finance brain</p>
 
         <textarea
