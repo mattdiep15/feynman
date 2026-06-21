@@ -51,7 +51,8 @@ export const FONT_LABELS: Record<FontChoice, string> = {
 };
 
 // Multiplier applied to graph label font sizes; medium leaves them unchanged.
-export const LABEL_SCALE: Record<SizeChoice, number> = { small: 0.82, medium: 1, large: 1.25 };
+// Spread wide enough that small vs large is unmistakable at a glance.
+export const LABEL_SCALE: Record<SizeChoice, number> = { small: 0.7, medium: 1, large: 1.7 };
 // Lower alphaDecay = the force graph settles more slowly.
 export const GRAPH_ALPHA_DECAY: Record<SpeedChoice, number> = { slow: 0.01, normal: 0.02, fast: 0.05 };
 // TTS playback rate.
