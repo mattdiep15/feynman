@@ -13,6 +13,7 @@ import HowItWorks from './HowItWorks';
 import NotesPanel from './NotesPanel';
 import Modal from './Modal';
 import NewBrainModal from './NewBrainModal';
+import BrainOverview from './BrainOverview';
 import { TAB_DEFS, type TabId } from './tabDefs';
 
 export default function Feynman() {
@@ -21,7 +22,7 @@ export default function Feynman() {
   const [graph, setGraph] = useState<GraphData>({ nodes: [], links: [] });
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selected, setSelected] = useState<GraphNode | null>(null);
-  const [tab, setTab] = useState<TabId>('chat');
+  const [tab, setTab] = useState<TabId>('overview');
   const [building, setBuilding] = useState(false);
   const [addingNotes, setAddingNotes] = useState(false);
   const [creatingBrain, setCreatingBrain] = useState(false);
@@ -91,6 +92,12 @@ export default function Feynman() {
 
   const switchBrain = (id: string) => {
     if (id !== activeBrainId) setActiveBrainId(id);
+  };
+
+  // From the overview dashboard: open a brain and jump into its neuron map.
+  const openBrain = (id: string) => {
+    setActiveBrainId(id);
+    setTab('graph');
   };
 
   const handleBrainCreated = async (brain: BrainMeta) => {
@@ -178,16 +185,23 @@ export default function Feynman() {
         </div>
 
         <div className="content">
+          {/* Overview dashboard — available even before a brain is selected. */}
+          <div className={`panel graph-panel${h('overview')}`}>
+            <BrainOverview active={tab === 'overview'} onOpenBrain={openBrain} />
+          </div>
+
           {!activeBrain ? (
-            <div className="panel">
-              <div className="empty-state">
-                <div className="empty-title">No brain yet</div>
-                <div className="empty-body">Create a brain to start building your neuron map.</div>
-                <button className="btn-primary" onClick={() => setCreatingBrain(true)}>
-                  + New brain
-                </button>
+            tab !== 'overview' && (
+              <div className="panel">
+                <div className="empty-state">
+                  <div className="empty-title">No brain yet</div>
+                  <div className="empty-body">Create a brain to start building your neuron map.</div>
+                  <button className="btn-primary" onClick={() => setCreatingBrain(true)}>
+                    + New brain
+                  </button>
+                </div>
               </div>
-            </div>
+            )
           ) : (
             <>
               {/* Converse */}
