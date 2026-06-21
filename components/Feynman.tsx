@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { BrainMeta } from '@/lib/brains';
 import type { GraphData, GraphNode } from '@/lib/graph';
+import type { Suggestion } from '@/lib/suggest';
 import { masteryToStatus } from '@/lib/nodeState';
 import Sidebar from './Sidebar';
 import NeuronMap from './NeuronMap';
@@ -18,6 +19,7 @@ export default function Feynman() {
   const [brains, setBrains] = useState<BrainMeta[]>([]);
   const [activeBrainId, setActiveBrainId] = useState<string | null>(null);
   const [graph, setGraph] = useState<GraphData>({ nodes: [], links: [] });
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [tab, setTab] = useState<TabId>('chat');
   const [building, setBuilding] = useState(false);
@@ -38,6 +40,18 @@ export default function Feynman() {
     setGraph(data);
   }, []);
 
+  // Coverage suggestions are seeded from mastered nodes; load them alongside the
+  // graph (and after the brain changes). Failures are non-fatal — just no dots.
+  const loadSuggestions = useCallback(async (brainId: string) => {
+    try {
+      const res = await fetch(`/api/suggest?brainId=${encodeURIComponent(brainId)}`);
+      const { suggestions } = await res.json();
+      setSuggestions(Array.isArray(suggestions) ? suggestions : []);
+    } catch {
+      setSuggestions([]);
+    }
+  }, []);
+
   useEffect(() => {
     loadBrains();
   }, [loadBrains]);
@@ -45,9 +59,11 @@ export default function Feynman() {
   useEffect(() => {
     if (activeBrainId) {
       setSelected(null);
+      setSuggestions([]);
       loadGraph(activeBrainId);
+      loadSuggestions(activeBrainId);
     }
-  }, [activeBrainId, loadGraph]);
+  }, [activeBrainId, loadGraph, loadSuggestions]);
 
   // Optimistic recolor: mutate the node in place so react-force-graph keeps its
   // position (no re-layout) while React re-renders on a fresh array.
@@ -103,6 +119,21 @@ export default function Feynman() {
   const addNotes = async (notes: string) => {
     await buildMap(notes);
     setAddingNotes(false);
+  };
+
+  // Accept a coverage suggestion: promote it to a real concept, then jump
+  // straight into conversing about it to solidify the new node.
+  const acceptSuggestion = async (s: Suggestion) => {
+    if (!activeBrainId) return;
+    setSuggestions((cur) => cur.filter((x) => x.id !== s.id));
+    await fetch('/api/suggest', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ brainId: activeBrainId, sourceId: s.sourceId, id: s.id, name: s.name, summary: s.summary }),
+    });
+    await loadGraph(activeBrainId);
+    await loadBrains();
+    selectConcept({ id: s.id, name: s.name, summary: s.summary, masteryScore: 0, status: 'untested', val: 1 });
   };
 
   const clearBrain = async () => {
@@ -186,6 +217,8 @@ export default function Feynman() {
                     onSelect={selectConcept}
                     onClear={clearBrain}
                     onAddNotes={() => setAddingNotes(true)}
+                    suggestions={suggestions}
+                    onAcceptSuggestion={acceptSuggestion}
                   />
                 </div>
               ) : (
