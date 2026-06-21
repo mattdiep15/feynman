@@ -236,6 +236,7 @@ export default function Feynman() {
               active={tab === 'overview'}
               focusedBrainId={overviewFocusId}
               onFocusBrain={setOverviewFocusId}
+              onOpenBrain={switchBrain}
             />
           </div>
 

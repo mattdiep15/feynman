@@ -1,12 +1,11 @@
 'use client';
 
-// R3 — Multibrain overview. A single pannable/zoomable field of every brain's
-// concept nodes, each brain settling into a globular dotted lobe (no emoji, no
-// per-node text) under a small name label that follows the lobe's curve. A subtle
-// pseudo-3D tilt (elliptical layout + depth-scaled dots) gives the "globe under a
-// magnifying glass" feel; the field rotates slowly only while idle. Focusing a
-// brain is driven from the left sidebar (which then hands off to its neuron map);
-// the canvas itself is pan/zoom only. Click the background to clear focus.
+// R3 — Multibrain overview. A single pannable/zoomable, flat field of every
+// brain's concept nodes, each brain settling into a globular lobe (solid border,
+// soft saturated fill, no emoji, no per-node text) with a straight name label
+// above it. The field rotates slowly only while idle. Focusing a brain — from the
+// left sidebar OR by clicking its lobe/label — fades the surrounding scaffolding
+// and hands off to that brain's neuron map. Click empty space to clear focus.
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BrainPoint, BrainLink, OverviewNode, OverviewConceptLink } from '@/lib/overview';
@@ -18,8 +17,7 @@ const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
   loading: () => <div style={{ padding: 16, color: 'var(--text-muted)' }}>Loading overview…</div>,
 });
 
-// Vertical squash applied to the layout + lobes for a tilted-plane look. (R3)
-const TILT = 0.62;
+const LOBE_PAD = 26; // gap between the node spread and the lobe outline
 
 // Read a CSS custom property (so dark mode themes the canvas), with a light-mode
 // fallback for SSR / before styles resolve.
@@ -55,38 +53,6 @@ function tracePolygon(ctx: CanvasRenderingContext2D, pts: { x: number; y: number
   ctx.closePath();
 }
 
-// Draw `text` curved along the top arc of a circle of `radius` around (cx,cy). (R3)
-function drawArcText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  cx: number,
-  cy: number,
-  radius: number,
-  fontSize: number,
-  color: string,
-) {
-  ctx.save();
-  ctx.fillStyle = color;
-  ctx.font = `600 ${fontSize}px system-ui`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const chars = [...text];
-  const widths = chars.map((ch) => ctx.measureText(ch).width);
-  const total = widths.reduce((a, b) => a + b, 0);
-  // Center the word over the top of the lobe; angles increase clockwise.
-  let angle = -Math.PI / 2 - total / (2 * radius);
-  for (let i = 0; i < chars.length; i++) {
-    angle += widths[i] / (2 * radius);
-    ctx.save();
-    ctx.translate(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle));
-    ctx.rotate(angle + Math.PI / 2);
-    ctx.fillText(chars[i], 0, 0);
-    ctx.restore();
-    angle += widths[i] / (2 * radius);
-  }
-  ctx.restore();
-}
-
 type OverviewData = {
   brains: BrainPoint[];
   nodes: OverviewNode[];
@@ -98,10 +64,12 @@ export default function BrainOverview({
   active,
   focusedBrainId,
   onFocusBrain,
+  onOpenBrain,
 }: {
   active: boolean;
   focusedBrainId: string | null;
   onFocusBrain: (id: string | null) => void;
+  onOpenBrain: (id: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -115,8 +83,9 @@ export default function BrainOverview({
   focusedRef.current = focusedBrainId;
   const hoveringRef = useRef(false);
   const rotationRef = useRef(0);
-  // Field vertical bounds, refreshed each frame, for pseudo-3D depth cues.
-  const depthRef = useRef({ cy: 0, half: 1 });
+  // Scaffolding (lobes/labels/links/other nodes) fade — eases to 0 while focused
+  // so the overview→neuron-map handoff isn't an abrupt cut. (2)
+  const fadeRef = useRef(1);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -161,8 +130,8 @@ export default function BrainOverview({
     [data],
   );
 
-  // Register the cluster force + loosen charge once data is in. Anchors are
-  // vertically squashed (TILT) so the whole field reads as a tilted plane.
+  // Register the cluster force + loosen charge once data is in. Anchors sit on a
+  // plain circle (flat field — no perspective tilt).
   useEffect(() => {
     const fg = fgRef.current;
     if (!fg || data.nodes.length === 0) return;
@@ -171,7 +140,6 @@ export default function BrainOverview({
       data.brains.map((b) => b.id),
       radius,
     );
-    for (const k in anchors) anchors[k].y *= TILT;
     fg.d3Force('cluster', clusterForce(anchors, 0.35));
     fg.d3Force('charge')?.strength(-40);
     fg.d3ReheatSimulation?.();
@@ -200,8 +168,8 @@ export default function BrainOverview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, size.w, size.h]);
 
-  // Slow rotation when idle; ease back to upright while hovering (incl. panning /
-  // zooming) or focused so the canvas pointer mapping stays accurate.
+  // Slow idle rotation; ease to upright while hovering (incl. pan/zoom) or focused
+  // so the canvas pointer mapping stays accurate. Also drive the scaffolding fade.
   useEffect(() => {
     let raf: number;
     const tick = () => {
@@ -211,6 +179,10 @@ export default function BrainOverview({
       } else {
         rotationRef.current += 0.03;
       }
+      // Fade scaffolding out while focused (transitioning), back in otherwise.
+      fadeRef.current = focusedRef.current
+        ? Math.max(0, fadeRef.current - 0.05)
+        : Math.min(1, fadeRef.current + 0.1);
       if (wrapperRef.current) wrapperRef.current.style.transform = `rotate(${rotationRef.current}deg)`;
       raf = requestAnimationFrame(tick);
     };
@@ -235,6 +207,20 @@ export default function BrainOverview({
     return { x, y, r: maxR };
   };
 
+  // Click a lobe or its label → open that brain's neuron map. Picks the nearest
+  // lobe whose region (outline + label band) contains the click. (1.1)
+  const pickBrainAt = (gx: number, gy: number): string | null => {
+    let best: { id: string; d: number } | null = null;
+    for (const brain of data.brains) {
+      const c = centroid(brain.id);
+      if (!c) continue;
+      const d = Math.hypot(gx - c.x, gy - c.y);
+      const reach = (c.r + LOBE_PAD) * 1.6; // include the label sitting above the lobe
+      if (d <= reach && (!best || d < best.d)) best = { id: brain.id, d };
+    }
+    return best?.id ?? null;
+  };
+
   const focusedName = data.brains.find((b) => b.id === focusedBrainId)?.name ?? focusedBrainId;
 
   return (
@@ -245,8 +231,8 @@ export default function BrainOverview({
           {loading
             ? 'Mapping…'
             : focusedBrainId
-              ? `Focused on ${focusedName}`
-              : `${data.brains.length} brains · drag to pan, scroll to zoom · pick a brain at left`}
+              ? `Opening ${focusedName}…`
+              : `${data.brains.length} brains · drag to pan, scroll to zoom · click a brain to open`}
           {focusedBrainId && (
             <button className="btn-ghost" onClick={() => onFocusBrain(null)} title="Back to all brains">
               ← All brains
@@ -279,11 +265,12 @@ export default function BrainOverview({
               graphData={graphData}
               backgroundColor={cssVar('--bg', '#FAFAF9')}
               cooldownTicks={200}
+              // Keep repainting so the scaffolding fade animates during handoff.
+              autoPauseRedraw={false}
               onEngineStop={() => {
                 if (!focusedRef.current) fitView(400);
               }}
-              // Pan/zoom is the overview interaction ("globe under a magnifying
-              // glass"); dragging individual nodes is not. (R3)
+              // Pan/zoom is the overview interaction; dragging single nodes is not.
               enableNodeDrag={false}
               enableZoomInteraction={true}
               enablePanInteraction={true}
@@ -291,20 +278,10 @@ export default function BrainOverview({
               linkWidth={0.5}
               onRenderFramePre={(ctx: CanvasRenderingContext2D, globalScale: number) => {
                 const focusedNow = focusedRef.current;
-                const lobeColor = cssVar('--purple-border', '#C4B5FD');
+                const fade = fadeRef.current;
+                const lobeStroke = cssVar('--purple-border', '#C4B5FD');
+                const lobeFill = cssVar('--purple-soft', '#A78BFA');
                 const labelColor = cssVar('--text', '#111827');
-
-                // Refresh the field's vertical bounds for depth shading.
-                let minY = Infinity;
-                let maxY = -Infinity;
-                for (const n of graphData.nodes as any[]) {
-                  if (n.y == null) continue;
-                  if (n.y < minY) minY = n.y;
-                  if (n.y > maxY) maxY = n.y;
-                }
-                if (minY < maxY) {
-                  depthRef.current = { cy: (minY + maxY) / 2, half: (maxY - minY) / 2 || 1 };
-                }
 
                 // Inter-brain dotted links between cluster centroids.
                 ctx.save();
@@ -314,9 +291,8 @@ export default function BrainOverview({
                   const a = centroid(l.source);
                   const b = centroid(l.target);
                   if (!a || !b) continue;
-                  const dim = focusedNow && l.source !== focusedNow && l.target !== focusedNow;
-                  ctx.globalAlpha = dim ? 0.08 : 0.5;
-                  ctx.strokeStyle = lobeColor;
+                  ctx.globalAlpha = 0.5 * fade;
+                  ctx.strokeStyle = lobeStroke;
                   ctx.beginPath();
                   ctx.moveTo(a.x, a.y);
                   ctx.lineTo(b.x, b.y);
@@ -324,47 +300,51 @@ export default function BrainOverview({
                 }
                 ctx.restore();
 
-                // Per-brain globular dotted lobe + faint fill + curved name. No
-                // emoji, no per-node text. (R3)
+                // Per-brain globular lobe: solid border, soft saturated fill, with a
+                // straight name label above it. No emoji, no per-node text.
                 for (const brain of data.brains) {
                   const c = centroid(brain.id);
                   if (!c) continue;
-                  const dim = focusedNow && brain.id !== focusedNow;
-                  const pad = 26;
-                  const pts = blobPoints(c.x, c.y, c.r + pad, hashSeed(brain.id));
+                  const pts = blobPoints(c.x, c.y, c.r + LOBE_PAD, hashSeed(brain.id));
 
                   ctx.save();
-                  ctx.setLineDash([3, 4]);
-                  ctx.lineWidth = 1.2 / globalScale;
-                  ctx.strokeStyle = lobeColor;
-                  ctx.fillStyle = cssVar('--purple-bg', '#F3F0FF');
-                  ctx.globalAlpha = dim ? 0.04 : 0.18;
+                  ctx.lineWidth = 1.4 / globalScale;
+                  ctx.strokeStyle = lobeStroke;
+                  ctx.fillStyle = lobeFill;
+                  ctx.globalAlpha = 0.16 * fade;
                   tracePolygon(ctx, pts);
                   ctx.fill();
-                  ctx.globalAlpha = dim ? 0.1 : 0.55;
+                  ctx.globalAlpha = 0.7 * fade;
                   tracePolygon(ctx, pts);
                   ctx.stroke();
                   ctx.restore();
 
-                  // Curved name label hugging the top of the lobe.
-                  ctx.save();
-                  ctx.globalAlpha = dim ? 0.25 : 1;
+                  // Straight name label, offset above the top of the lobe.
                   const fontSize = 12 / globalScale;
-                  drawArcText(ctx, brain.name, c.x, c.y, c.r + pad + fontSize * 1.4, fontSize, labelColor);
+                  const maxR = (c.r + LOBE_PAD) * 1.32; // blob's outer reach
+                  ctx.save();
+                  ctx.globalAlpha = fade;
+                  ctx.font = `600 ${fontSize}px system-ui`;
+                  ctx.fillStyle = labelColor;
+                  ctx.textAlign = 'center';
+                  ctx.textBaseline = 'bottom';
+                  ctx.fillText(brain.name, c.x, c.y - maxR - fontSize * 0.8);
                   ctx.restore();
                 }
               }}
               nodeCanvasObjectMode={() => 'replace'}
               nodeCanvasObject={(node: any, ctx, globalScale) => {
                 const focusedNow = focusedRef.current;
-                const dim = focusedNow && node.brainId !== focusedNow;
-                // Pseudo-3D depth: nodes lower in the field (front) read a touch
-                // larger and more opaque than those at the back. (R3)
-                const { cy, half } = depthRef.current;
-                const depth = Math.max(-1, Math.min(1, (node.y - cy) / half));
-                const r = 4 * (1 + depth * 0.4);
-                ctx.globalAlpha = dim ? 0.12 : 0.6 + ((depth + 1) / 2) * 0.4;
+                const fade = fadeRef.current;
+                // Focused brain's nodes persist (they become the neuron map);
+                // everything else fades out during the handoff.
+                ctx.globalAlpha = !focusedNow
+                  ? 1
+                  : node.brainId === focusedNow
+                    ? 1
+                    : 0.12 * fade;
                 const status = masteryToStatus(node.masteryScore);
+                const r = 4;
                 ctx.beginPath();
                 ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
                 if (status !== 'untouched') {
@@ -383,7 +363,18 @@ export default function BrainOverview({
                 ctx.arc(node.x, node.y, 8, 0, 2 * Math.PI);
                 ctx.fill();
               }}
-              onBackgroundClick={() => onFocusBrain(null)}
+              onNodeClick={(n: any) => onOpenBrain(n.brainId)}
+              onBackgroundClick={(e: MouseEvent) => {
+                const fg = fgRef.current;
+                if (!fg) return onFocusBrain(null);
+                const { x, y } = fg.screen2GraphCoords(
+                  (e as any).offsetX ?? 0,
+                  (e as any).offsetY ?? 0,
+                );
+                const id = pickBrainAt(x, y);
+                if (id) onOpenBrain(id);
+                else onFocusBrain(null);
+              }}
             />
           </div>
         )}

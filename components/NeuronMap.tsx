@@ -129,13 +129,15 @@ export default function NeuronMap({
   // Base/expanded dot sizes from the user's node-size preference.
   const BASE_R = HOVER_BASE[settings.nodeSize];
   const EXPANDED_R = HOVER_EXPANDED[settings.nodeSize];
-  // Collision radius: comfortable resting spacing that also covers most of the
-  // hover expansion, so nodes don't overlap.
-  const COLLIDE_R = Math.max(EXPANDED_R * 0.6, BASE_R + 6);
+  // Collision radius: keep a constant padding between node *borders* even at full
+  // hover expansion, so expanded nodes (and their labels) don't overlap. (3)
+  const COLLIDE_R = EXPANDED_R + 4;
 
-  // Theme-aware colors read once per theme change (not per node per frame).
+  // Theme-aware colors read once per theme change (not per node per frame). One
+  // neutral label color for every node — consistent, readable on the background,
+  // and a single color in dark mode. (3)
   const haloColor = useMemo(() => cssVar('--bg', '#FAFAF9'), [settings.theme]);
-  const untouchedText = useMemo(() => cssVar('--text', '#111827'), [settings.theme]);
+  const labelColor = useMemo(() => cssVar('--text-secondary', '#6b7280'), [settings.theme]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
@@ -322,8 +324,7 @@ export default function NeuronMap({
               // t. White on a solid status dot; theme text on hollow untouched.
               if (t > 0.25) {
                 ctx.globalAlpha = (t - 0.25) / 0.75;
-                const fill = status === 'untouched' ? untouchedText : '#FFFFFF';
-                drawLabel(ctx, node.name, node.x, node.y, fontSize, globalScale, fill, haloColor);
+                drawLabel(ctx, node.name, node.x, node.y, fontSize, globalScale, labelColor, haloColor);
                 ctx.globalAlpha = 1;
               }
             }}
