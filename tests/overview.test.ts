@@ -1,30 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  meanVector,
-  cosineSimilarity,
-  pairwiseLinks,
-  brainAnchors,
-  blobPoints,
-  hashSeed,
-} from '../lib/overview';
-
-describe('blobPoints', () => {
-  it('keeps every sampled point at or outside the enclosing radius', () => {
-    const enclR = 50;
-    const pts = blobPoints(0, 0, enclR, hashSeed('finance'));
-    for (const p of pts) {
-      // smallest radius (sin = -1) equals enclR, so nodes within enclR stay inside
-      expect(Math.hypot(p.x, p.y)).toBeGreaterThanOrEqual(enclR - 1e-6);
-    }
-  });
-
-  it('is deterministic for a given seed and offset by center', () => {
-    const a = blobPoints(10, 20, 40, hashSeed('math'));
-    const b = blobPoints(10, 20, 40, hashSeed('math'));
-    expect(a).toEqual(b);
-    expect(a[0]).toMatchObject({ x: expect.any(Number), y: expect.any(Number) });
-  });
-});
+import { meanVector, cosineSimilarity, pairwiseLinks, brainAnchors } from '../lib/overview';
 
 describe('meanVector', () => {
   it('averages concept vectors into a centroid', () => {

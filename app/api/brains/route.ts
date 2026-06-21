@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 import { USER_ID } from '@/lib/constants';
-import { listBrains, createBrain, deleteBrain, isValidBrainId } from '@/lib/brains';
+import { listBrains, createBrain, deleteBrain, renameBrain, isValidBrainId } from '@/lib/brains';
 
 export async function GET() {
   const redis = await getRedis();
@@ -21,6 +21,19 @@ export async function POST(req: Request) {
   const redis = await getRedis();
   const brain = await createBrain(redis, USER_ID, name, icon);
   return NextResponse.json({ brain }, { status: 201 });
+}
+
+// Rename a brain (display name only; id/slug stays the same).
+export async function PATCH(req: Request) {
+  const body = await req.json().catch(() => null);
+  const brainId = typeof body?.brainId === 'string' ? body.brainId : '';
+  const name = typeof body?.name === 'string' ? body.name.trim() : '';
+  if (!brainId || !isValidBrainId(brainId) || !name) {
+    return NextResponse.json({ error: 'valid brainId and name required' }, { status: 400 });
+  }
+  const redis = await getRedis();
+  await renameBrain(redis, USER_ID, brainId, name);
+  return NextResponse.json({ ok: true });
 }
 
 // Delete a brain entirely (data + registry entry). brainId comes from the query

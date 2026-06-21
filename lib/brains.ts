@@ -97,6 +97,16 @@ export async function createBrain(
   return { id, name, icon, conceptCount: 0, avgMastery: 0 };
 }
 
+// Rename a brain (its id/slug is unchanged — only the display name).
+export async function renameBrain(
+  redis: Redis,
+  userId: string,
+  brainId: string,
+  name: string,
+): Promise<void> {
+  await redis.hSet(brainKey(userId, brainId), { name });
+}
+
 // Generalized reset: wipe one brain's data and drop it from the registry.
 export async function deleteBrain(redis: Redis, userId: string, brainId: string): Promise<number> {
   const keys = [

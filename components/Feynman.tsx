@@ -186,6 +186,19 @@ export default function Feynman() {
     }
   };
 
+  // Rename a brain (display name only; id/slug is unchanged).
+  const renameBrainById = async (id: string) => {
+    const brain = brains.find((b) => b.id === id);
+    const name = window.prompt('Rename brain', brain?.name ?? '')?.trim();
+    if (!name || name === brain?.name) return;
+    await fetch('/api/brains', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ brainId: id, name }),
+    });
+    await loadBrains();
+  };
+
   const clearBrain = async () => {
     if (!activeBrainId) return;
     if (!window.confirm('Clear this brain? Deletes all concepts, edges, mastery, and memory.')) return;
@@ -207,10 +220,11 @@ export default function Feynman() {
     <div className="app">
       <Sidebar
         brains={brains}
-        activeBrainId={activeBrainId}
+        activeBrainId={tab === 'overview' ? null : activeBrainId}
         onSwitchBrain={switchBrain}
         onNewBrain={() => setCreatingBrain(true)}
         onDeleteBrain={deleteBrainById}
+        onRenameBrain={renameBrainById}
         onHome={goHome}
         tab={tab}
         onTab={setTab}
@@ -221,7 +235,9 @@ export default function Feynman() {
             <button
               key={t.id}
               className={`tab${t.id === tab ? ' active' : ''}`}
-              onClick={() => setTab(t.id)}
+              // The Overview tab is the home view — same as the logo: clear any
+              // brain focus so it never opens a brain-specific overview.
+              onClick={() => (t.id === 'overview' ? goHome() : setTab(t.id))}
             >
               {t.icon}
               {t.label}

@@ -3,7 +3,7 @@
 import type { BrainMeta } from '@/lib/brains';
 import { META_TABS, type TabId } from './tabDefs';
 import { Logo } from './Logo';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, Brain } from 'lucide-react';
 
 export default function Sidebar({
   brains,
@@ -11,6 +11,7 @@ export default function Sidebar({
   onSwitchBrain,
   onNewBrain,
   onDeleteBrain,
+  onRenameBrain,
   onHome,
   tab,
   onTab,
@@ -20,6 +21,7 @@ export default function Sidebar({
   onSwitchBrain: (id: string) => void;
   onNewBrain: () => void;
   onDeleteBrain: (id: string) => void;
+  onRenameBrain: (id: string) => void;
   onHome: () => void;
   tab: TabId;
   onTab: (t: TabId) => void;
@@ -39,9 +41,22 @@ export default function Sidebar({
           className={`brain-item${b.id === activeBrainId ? ' active' : ''}`}
           onClick={() => onSwitchBrain(b.id)}
         >
-          <span className="brain-icon">{b.icon}</span>
+          <span className="brain-icon">
+            <Brain width={16} height={16} strokeWidth={1.6} />
+          </span>
           <span className="brain-name">{b.name}</span>
           <span className="brain-score">{b.avgMastery}%</span>
+          <span
+            className="brain-edit"
+            title="Rename brain"
+            aria-label={`Rename ${b.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRenameBrain(b.id);
+            }}
+          >
+            <Pencil width={13} height={13} strokeWidth={1.5} />
+          </span>
           <span
             className="brain-delete"
             title="Delete brain"

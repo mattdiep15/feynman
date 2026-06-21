@@ -54,39 +54,6 @@ export function brainAnchors(
   return out;
 }
 
-// Stable per-brain seed (hash of the id) so each lobe's organic wobble is
-// deterministic across renders. (R3)
-export function hashSeed(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-// Sample points of a smooth, closed "blob" around (cx,cy): a base radius modulated
-// by a few seeded sine lobes so each brain reads as a globular lobe rather than a
-// plain circle. `enclR` is the radius that must stay enclosed (the lobe's node
-// spread + padding) — the smallest sampled radius equals enclR, so all nodes stay
-// inside. Pure → testable. (R3)
-export function blobPoints(
-  cx: number,
-  cy: number,
-  enclR: number,
-  seed: number,
-  samples = 48,
-  amp = 0.14,
-): { x: number; y: number }[] {
-  const base = enclR / (1 - amp); // smallest radius (sin = -1) == enclR
-  const phase = (seed % 360) * (Math.PI / 180);
-  const lobes = 3 + (seed % 3); // 3..5 lobes
-  const pts: { x: number; y: number }[] = [];
-  for (let i = 0; i < samples; i++) {
-    const a = (2 * Math.PI * i) / samples;
-    const r = base * (1 + amp * Math.sin(lobes * a + phase));
-    pts.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
-  }
-  return pts;
-}
-
 // A dotted connector is drawn between two brains whose similarity exceeds this.
 // Tunable — text embeddings have a high similarity floor, so this sits well
 // above 0.

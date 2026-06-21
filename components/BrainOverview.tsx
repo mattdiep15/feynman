@@ -1,15 +1,15 @@
 'use client';
 
 // R3 — Multibrain overview. A single pannable/zoomable, flat field of every
-// brain's concept nodes, each brain settling into a globular lobe (solid border,
-// soft saturated fill, no emoji, no per-node text) with a straight name label
-// above it. The field rotates slowly only while idle. Focusing a brain — from the
-// left sidebar OR by clicking its lobe/label — fades the surrounding scaffolding
-// and hands off to that brain's neuron map. Click empty space to clear focus.
+// brain's concept nodes, each brain settling into a circular lobe (solid border,
+// soft saturated fill, no emoji, no per-node text) with an upright name label
+// above it that stays on top while the field slowly rotates when idle. Opening a
+// brain — from the left sidebar OR by clicking its lobe/label — fades the
+// surrounding scaffolding and hands off to its neuron map. Click empty to clear.
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BrainPoint, BrainLink, OverviewNode, OverviewConceptLink } from '@/lib/overview';
-import { brainAnchors, blobPoints, hashSeed } from '@/lib/overview';
+import { brainAnchors } from '@/lib/overview';
 import { masteryToStatus, nodeDotColor, nodeBorder } from '@/lib/nodeState';
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
@@ -43,14 +43,6 @@ function clusterForce(anchors: Record<string, { x: number; y: number }>, strengt
     nodes = n;
   };
   return force;
-}
-
-// Draw a closed blob outline through pre-sampled points.
-function tracePolygon(ctx: CanvasRenderingContext2D, pts: { x: number; y: number }[]) {
-  ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-  ctx.closePath();
 }
 
 type OverviewData = {
@@ -300,35 +292,42 @@ export default function BrainOverview({
                 }
                 ctx.restore();
 
-                // Per-brain globular lobe: solid border, soft saturated fill, with a
-                // straight name label above it. No emoji, no per-node text.
+                // Per-brain circular lobe: solid border, soft saturated fill, with
+                // a name label above it. No emoji, no per-node text.
+                const theta = (rotationRef.current * Math.PI) / 180;
                 for (const brain of data.brains) {
                   const c = centroid(brain.id);
                   if (!c) continue;
-                  const pts = blobPoints(c.x, c.y, c.r + LOBE_PAD, hashSeed(brain.id));
+                  const R = c.r + LOBE_PAD;
 
                   ctx.save();
                   ctx.lineWidth = 1.4 / globalScale;
                   ctx.strokeStyle = lobeStroke;
                   ctx.fillStyle = lobeFill;
                   ctx.globalAlpha = 0.16 * fade;
-                  tracePolygon(ctx, pts);
+                  ctx.beginPath();
+                  ctx.arc(c.x, c.y, R, 0, 2 * Math.PI);
                   ctx.fill();
                   ctx.globalAlpha = 0.7 * fade;
-                  tracePolygon(ctx, pts);
+                  ctx.beginPath();
+                  ctx.arc(c.x, c.y, R, 0, 2 * Math.PI);
                   ctx.stroke();
                   ctx.restore();
 
-                  // Straight name label, offset above the top of the lobe.
+                  // Keep the label upright and directly above the lobe in SCREEN
+                  // space even while the field rotates: offset along screen-up and
+                  // counter-rotate the glyphs against the CSS wrapper rotation.
                   const fontSize = 12 / globalScale;
-                  const maxR = (c.r + LOBE_PAD) * 1.32; // blob's outer reach
+                  const L = R + fontSize * 1.6;
                   ctx.save();
                   ctx.globalAlpha = fade;
+                  ctx.translate(c.x - L * Math.sin(theta), c.y - L * Math.cos(theta));
+                  ctx.rotate(-theta);
                   ctx.font = `600 ${fontSize}px system-ui`;
                   ctx.fillStyle = labelColor;
                   ctx.textAlign = 'center';
-                  ctx.textBaseline = 'bottom';
-                  ctx.fillText(brain.name, c.x, c.y - maxR - fontSize * 0.8);
+                  ctx.textBaseline = 'middle';
+                  ctx.fillText(brain.name, 0, 0);
                   ctx.restore();
                 }
               }}

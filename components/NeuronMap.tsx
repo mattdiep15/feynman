@@ -165,6 +165,30 @@ export default function NeuronMap({
     if (visible) didFitRef.current = false;
   }, [visible]);
 
+  // Track the cursor in graph coords to drive the hover-expand. Use a native
+  // CAPTURE-phase listener: react-force-graph's canvas / d3-zoom stops pointer
+  // propagation, so a bubble-phase React handler never fires and nodes wouldn't
+  // grow. Capture runs before any child can stop it.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onMove = (e: PointerEvent) => {
+      const fg = fgRef.current;
+      if (!fg) return;
+      const rect = el.getBoundingClientRect();
+      cursorRef.current = fg.screen2GraphCoords(e.clientX - rect.left, e.clientY - rect.top);
+    };
+    const onLeave = () => {
+      cursorRef.current = null;
+    };
+    el.addEventListener('pointermove', onMove, true);
+    el.addEventListener('pointerleave', onLeave, true);
+    return () => {
+      el.removeEventListener('pointermove', onMove, true);
+      el.removeEventListener('pointerleave', onLeave, true);
+    };
+  }, []);
+
   const avg = nodes.length
     ? Math.round(nodes.reduce((s, n) => s + n.masteryScore, 0) / nodes.length)
     : 0;
@@ -222,22 +246,7 @@ export default function NeuronMap({
           </button>
         </div>
       </div>
-      <div
-        className="graph-area"
-        ref={containerRef}
-        onPointerMove={(e) => {
-          const el = containerRef.current;
-          if (!el || !fgRef.current) return;
-          const rect = el.getBoundingClientRect();
-          cursorRef.current = fgRef.current.screen2GraphCoords(
-            e.clientX - rect.left,
-            e.clientY - rect.top,
-          );
-        }}
-        onPointerLeave={() => {
-          cursorRef.current = null;
-        }}
-      >
+      <div className="graph-area" ref={containerRef}>
         {size.w > 0 && (
           <ForceGraph2D
             ref={fgRef}
