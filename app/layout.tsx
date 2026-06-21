@@ -13,7 +13,10 @@ const THEME_SCRIPT = `(function(){try{var s=JSON.parse(localStorage.getItem('fey
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" data-theme="light">
+    // THEME_SCRIPT mutates data-theme/--font-app on <html> before hydration, so the
+    // live element intentionally differs from the server markup — suppress the
+    // (html-element-scoped) hydration warning for exactly that reason.
+    <html lang="en" data-theme="light" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
