@@ -11,7 +11,11 @@ import {
   nodeFill,
   nodeBorder,
   nodeTextColor,
-  nodeRadius,
+  nodeDotColor,
+  hoverScale,
+  expandedRadius,
+  HOVER_BASE,
+  HOVER_EXPANDED,
   type NodeStatus,
 } from '@/lib/nodeState';
 
@@ -20,9 +24,13 @@ const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
   loading: () => <div style={{ padding: 16, color: '#9CA3AF' }}>Loading neuron map…</div>,
 });
 
-// Only nodes within this many screen pixels of the cursor expand to show their
-// label; the rest collapse to a colored dot. Keeps a dense map readable.
-const LABEL_RADIUS_PX = 90;
+// Cursor influence radius (screen px): nodes within this distance expand from a
+// dot toward their full size, growing most as the cursor lands on them.
+const INFLUENCE_PX = 150;
+// Base/expanded dot sizes. (When the Settings tab lands these come from the
+// user's node-size preference; default to medium until then.)
+const BASE_R = HOVER_BASE.medium;
+const EXPANDED_R = HOVER_EXPANDED.medium;
 
 const LEGEND: { status: NodeStatus; label: string }[] = [
   { status: 'untouched', label: 'Untouched' },
@@ -145,6 +153,10 @@ export default function NeuronMap({
             linkWidth={1}
             linkLineDash={(l: any) => (l.__suggestion ? [3, 3] : null)}
             cooldownTicks={120}
+            // Keep the render loop alive after the sim cools so hover tracking
+            // (driven by cursorRef, not React state) keeps repainting. Without
+            // this the labels freeze once the graph settles (~3s). (R2)
+            autoPauseRedraw={false}
             nodeCanvasObjectMode={() => 'replace'}
             nodeCanvasObject={(node: any, ctx, globalScale) => {
               const fontSize = 12 / globalScale;
@@ -170,35 +182,49 @@ export default function NeuronMap({
               }
 
               const status = masteryToStatus(node.masteryScore);
-              const r = nodeRadius(status, node.masteryScore);
+
+              // Expansion factor: 1 for the selected node, otherwise grows as the
+              // cursor approaches (screen distance = graph distance × globalScale).
+              const cursor = cursorRef.current;
+              const t =
+                node.id === selectedId
+                  ? 1
+                  : cursor
+                    ? hoverScale(
+                        Math.hypot(node.x - cursor.x, node.y - cursor.y) * globalScale,
+                        INFLUENCE_PX,
+                      )
+                    : 0;
+              const r = expandedRadius(t, BASE_R, EXPANDED_R);
 
               ctx.beginPath();
               ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
               if (status !== 'untouched') {
-                ctx.fillStyle = nodeFill(status);
+                ctx.fillStyle = nodeDotColor(status);
                 ctx.fill();
               }
               ctx.strokeStyle = node.id === selectedId ? '#7C3AED' : nodeBorder(status);
-              ctx.lineWidth = (node.id === selectedId ? 2.5 : 1.5) / globalScale;
+              ctx.lineWidth = (node.id === selectedId ? 2.5 : 1) / globalScale;
               ctx.stroke();
 
-              // Declutter: only expand the label for the selected node or nodes
-              // within LABEL_RADIUS_PX of the cursor (distance in graph units ×
-              // globalScale = screen pixels). Others stay collapsed dots.
-              const cursor = cursorRef.current;
-              const nearCursor =
-                cursor &&
-                Math.hypot(node.x - cursor.x, node.y - cursor.y) * globalScale <= LABEL_RADIUS_PX;
-              if (node.id !== selectedId && !nearCursor) return;
-
-              ctx.font = `${status === 'untouched' ? 400 : 500} ${fontSize}px system-ui`;
-              ctx.fillStyle = nodeTextColor(status);
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillText(node.name, node.x, node.y);
+              // Once expanded enough, fill the node with its label, fading in with
+              // t. Drawn with a background-colored halo so it stays readable.
+              if (t > 0.25) {
+                ctx.globalAlpha = (t - 0.25) / 0.75;
+                ctx.font = `500 ${fontSize}px system-ui`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.lineWidth = 3 / globalScale;
+                ctx.strokeStyle = '#FAFAF9';
+                ctx.strokeText(node.name, node.x, node.y);
+                ctx.fillStyle = status === 'untouched' ? nodeTextColor(status) : '#FFFFFF';
+                ctx.fillText(node.name, node.x, node.y);
+                ctx.globalAlpha = 1;
+              }
             }}
             nodePointerAreaPaint={(node: any, color, ctx) => {
-              const r = node.__suggestion ? 9 : nodeRadius(masteryToStatus(node.masteryScore), node.masteryScore);
+              // Generous, fixed hit area so the small dots stay easy to click.
+              const r = node.__suggestion ? 9 : 12;
               ctx.fillStyle = color;
               ctx.beginPath();
               ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
