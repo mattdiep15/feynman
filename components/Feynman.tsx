@@ -248,8 +248,12 @@ export default function Feynman() {
         <div className="tabs">
           {PRIMARY_TABS.map((t) => {
             // Overview is the global home view; the rest open a specific brain, so
-            // disable them until a brain is selected in the sidebar.
-            const disabled = t.id !== 'overview' && !activeBrain;
+            // disable them until a brain is selected in the sidebar. A brain only
+            // counts as selected when the sidebar highlights one — i.e. we're not
+            // on the Overview/home view (activeBrainId auto-defaults to the first
+            // brain, so checking it alone would never gate). (gates)
+            const brainSelected = tab !== 'overview' && !!activeBrain;
+            const disabled = t.id !== 'overview' && !brainSelected;
             return (
               <button
                 key={t.id}
