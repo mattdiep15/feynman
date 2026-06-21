@@ -1,0 +1,25 @@
+- Replace the icons for brains, and iu elements with lucide
+  - use lucide (react framework)
+- multibrain view
+  - Currently, there is no way to zoom in or out, please implement that feature
+  - can you not show the brain icons
+  - can you place the brains/lobes/nodes in a more 3d orientation
+  - ~~is it possible to overlay an anatomical transparent sketch of the brain over all of these nodes?~~ and then selecting the brain (only from the left sidebar) will move the tab to the neuron map, flattening and focusing the brain’s nodes;
+    - actually this doens’t seem that feasible if we wanted to maintain the dotted lines between semantically adjacent categories, so let’s keep bounding circles and dotted lines between “brain circles” maybe we can play around with the edge shapes tho? maybe more globular/lobular? inside the circles, no text should appear only the brain nodes all as identicaly sized circles, and maybe a small brain label that can follow the curvature of the outer bounding circle/glob
+  - in this way, we also remove the interaction of the brain in the overview page, i want it to be a smooth transition between overview, selecting the brain, and then transitioning into its respective neuron map. all interaction on the map side, should really just be panning around the “overarching brain map” zooming/expanding what’s at the center of the screen. this interaction might even feel like rotating a globe under a magnifying glass.
+- Add the logo to the landing page
+  - add a lot more nodes to the landing page background
+  - make nodes rotate slightly faster
+- make the spacing between nodes larger, specifically in the landing page
+- deepgram better integration
+  - When the user is talking have the words show up real time as they speak.
+  - There should be a reactive voice element that replaces the text input bar
+- fix ui tab placement
+  - can you keep the How it works and Settings tabs on the bottom left, but keep all overview, Converse, neuron map, and progress (brain specific tabs) on the top?
+- node text
+  - Could you make the text more visible.
+  - IF I click on an empty node, and move it around, sometimes everything disappears can you fix that.
+  - Fix when loading the brains, can you have it so it zoom to fit screen?
+  - for suggested nodes, they should be the same size as nodes currently on your screen.
+  - Can you make it so nodes cannot overlap with each other?
+- Add capability to delete specific brains.

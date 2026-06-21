@@ -89,7 +89,7 @@ function drawLabel(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
-  ctx.lineWidth = 4 / globalScale;
+  ctx.lineWidth = 2 / globalScale;
   ctx.strokeStyle = halo;
   ctx.strokeText(text, x, y);
   ctx.fillStyle = fill;
