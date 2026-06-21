@@ -26,21 +26,40 @@ describe('buildEvalPrompt', () => {
 });
 
 describe('normalizeEvaluation', () => {
-  it('clamps the score and coerces arrays', () => {
+  it('computes mastery from the rubric sub-scores and coerces arrays', () => {
     const e = normalizeEvaluation({
-      masteryScore: 150,
+      coreAccuracy: 25,
+      keyRelationships: 20,
+      absenceOfMisconceptions: 15,
+      connectsToRelated: 10,
       correct: ['a', 2, 'b'],
       missing: 'nope',
       misconceptions: ['m'],
       feedbackMessage: 'nice',
       followUpQuestion: 'why?',
     });
-    expect(e.masteryScore).toBe(100);
+    expect(e.masteryScore).toBe(70); // 25+20+15+10, computed not free-typed
+    expect(e.rubric).toEqual({
+      coreAccuracy: 25,
+      keyRelationships: 20,
+      absenceOfMisconceptions: 15,
+      connectsToRelated: 10,
+    });
     expect(e.correct).toEqual(['a', 'b']);
     expect(e.missing).toEqual([]);
     expect(e.misconceptions).toEqual(['m']);
     expect(e.feedbackMessage).toBe('nice');
     expect(e.followUpQuestion).toBe('why?');
+  });
+
+  it('clamps out-of-range rubric components before summing', () => {
+    const e = normalizeEvaluation({
+      coreAccuracy: 999,
+      keyRelationships: 30,
+      absenceOfMisconceptions: 20,
+      connectsToRelated: 20,
+    });
+    expect(e.masteryScore).toBe(100); // 30(clamped)+30+20+20
   });
 
   it('falls back to safe defaults on garbage', () => {

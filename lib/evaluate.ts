@@ -1,9 +1,12 @@
 // Pure helpers for Feature 3d (evaluate). Prompt builder + result sanitizer.
-import { clampScore } from './mastery';
+import { computeMastery, clampComponent, RUBRIC_MAX, type RubricScores } from './score';
 import type { RelatedNode } from './retrieve';
 
 export interface EvaluationResult {
+  // Continuous 0–100, computed from the rubric (see lib/score.ts) rather than
+  // free-typed by the model.
   masteryScore: number;
+  rubric: RubricScores;
   correct: string[];
   missing: string[];
   misconceptions: string[];
@@ -45,7 +48,8 @@ STUDENT'S SPOKEN EXPLANATION (transcript):
 ${transcript}
 """
 
-Grade with this rubric, summing to a 0–100 mastery score:
+Score each rubric dimension independently — do NOT sum them yourself; the total
+is computed from your sub-scores:
 1. Core definition accuracy (0–30)
 2. Key relationships (0–30)
 3. Absence of misconceptions (0–20)
@@ -53,7 +57,10 @@ Grade with this rubric, summing to a 0–100 mastery score:
 
 Return ONLY valid JSON in this exact shape:
 {
-  "masteryScore": <integer 0-100>,
+  "coreAccuracy": <number 0-30>,
+  "keyRelationships": <number 0-30>,
+  "absenceOfMisconceptions": <number 0-20>,
+  "connectsToRelated": <number 0-20>,
   "correct": ["what they got right"],
   "missing": ["important things they left out"],
   "misconceptions": ["any wrong beliefs they revealed"],
@@ -66,18 +73,33 @@ Return ONLY valid JSON in this exact shape:
 // structured instead of relying on prompt-only JSON.
 export const EVALUATION_TOOL = {
   name: 'record_evaluation',
-  description: "Record the structured evaluation of the student's spoken explanation.",
+  description:
+    "Record the structured evaluation of the student's spoken explanation. Score each " +
+    'rubric dimension independently; the total mastery is computed from the sub-scores.',
   input_schema: {
     type: 'object' as const,
     properties: {
-      masteryScore: { type: 'integer', minimum: 0, maximum: 100, description: 'Total 0–100 from the rubric.' },
+      coreAccuracy: { type: 'number', minimum: 0, maximum: 30, description: 'Core definition accuracy (0–30).' },
+      keyRelationships: { type: 'number', minimum: 0, maximum: 30, description: 'Key relationships (0–30).' },
+      absenceOfMisconceptions: { type: 'number', minimum: 0, maximum: 20, description: 'Absence of misconceptions (0–20).' },
+      connectsToRelated: { type: 'number', minimum: 0, maximum: 20, description: 'Connects to related concepts (0–20).' },
       correct: { type: 'array', items: { type: 'string' }, description: 'Things the student got right.' },
       missing: { type: 'array', items: { type: 'string' }, description: 'Important things left out.' },
       misconceptions: { type: 'array', items: { type: 'string' }, description: 'Wrong beliefs revealed.' },
       feedbackMessage: { type: 'string', description: '2-3 warm spoken sentences of feedback.' },
       followUpQuestion: { type: 'string', description: 'One question probing the biggest gap.' },
     },
-    required: ['masteryScore', 'correct', 'missing', 'misconceptions', 'feedbackMessage', 'followUpQuestion'],
+    required: [
+      'coreAccuracy',
+      'keyRelationships',
+      'absenceOfMisconceptions',
+      'connectsToRelated',
+      'correct',
+      'missing',
+      'misconceptions',
+      'feedbackMessage',
+      'followUpQuestion',
+    ],
   },
 };
 
@@ -88,8 +110,21 @@ function strArray(v: unknown): string[] {
 
 export function normalizeEvaluation(raw: unknown): EvaluationResult {
   const r = (raw ?? {}) as Record<string, unknown>;
+  const rubric: RubricScores = {
+    coreAccuracy: Number(r.coreAccuracy),
+    keyRelationships: Number(r.keyRelationships),
+    absenceOfMisconceptions: Number(r.absenceOfMisconceptions),
+    connectsToRelated: Number(r.connectsToRelated),
+  };
   return {
-    masteryScore: clampScore(Number(r.masteryScore)),
+    // Deterministic total from the rubric (clamps components internally).
+    masteryScore: computeMastery(rubric),
+    rubric: {
+      coreAccuracy: clampComponent(rubric.coreAccuracy, RUBRIC_MAX.coreAccuracy),
+      keyRelationships: clampComponent(rubric.keyRelationships, RUBRIC_MAX.keyRelationships),
+      absenceOfMisconceptions: clampComponent(rubric.absenceOfMisconceptions, RUBRIC_MAX.absenceOfMisconceptions),
+      connectsToRelated: clampComponent(rubric.connectsToRelated, RUBRIC_MAX.connectsToRelated),
+    },
     correct: strArray(r.correct),
     missing: strArray(r.missing),
     misconceptions: strArray(r.misconceptions),
