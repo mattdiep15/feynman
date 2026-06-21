@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { meanVector, cosineSimilarity, pairwiseLinks } from '../lib/overview';
+import { meanVector, cosineSimilarity, pairwiseLinks, brainAnchors } from '../lib/overview';
 
 describe('meanVector', () => {
   it('averages concept vectors into a centroid', () => {
@@ -47,5 +47,22 @@ describe('pairwiseLinks', () => {
       { id: 'b', vector: null },
     ]);
     expect(links).toEqual([]);
+  });
+});
+
+describe('brainAnchors', () => {
+  it('puts a single brain at the origin', () => {
+    expect(brainAnchors(['only'], 200)).toEqual({ only: { x: 0, y: 0 } });
+  });
+
+  it('spaces multiple brains evenly on a circle of the given radius', () => {
+    const a = brainAnchors(['a', 'b', 'c', 'd'], 100);
+    // every anchor sits on the circle
+    for (const id of ['a', 'b', 'c', 'd']) {
+      expect(Math.hypot(a[id].x, a[id].y)).toBeCloseTo(100, 6);
+    }
+    // first at angle 0, third diametrically opposite it
+    expect(a.a.x).toBeCloseTo(100, 6);
+    expect(a.c.x).toBeCloseTo(-100, 6);
   });
 });

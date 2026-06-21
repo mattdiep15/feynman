@@ -187,7 +187,11 @@ export default function Feynman() {
         <div className="content">
           {/* Overview dashboard — available even before a brain is selected. */}
           <div className={`panel graph-panel${h('overview')}`}>
-            <BrainOverview active={tab === 'overview'} onOpenBrain={openBrain} />
+            <BrainOverview
+              active={tab === 'overview'}
+              selectedBrainId={activeBrainId}
+              onOpenBrain={openBrain}
+            />
           </div>
 
           {!activeBrain ? (

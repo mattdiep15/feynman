@@ -1,16 +1,17 @@
-// Feature 3d — Evaluate. POST { conceptId, transcript, brainId? } → embed → KNN
-// → Claude → persist mastery + misconceptions → EvaluationResult.
+// Feature 3d — Evaluate (R3: session-based). POST { conceptId, transcript,
+// brainId?, priorTurns? } → embed → KNN → Claude → cumulative session score.
+// This route NO LONGER persists: scoring stays provisional in the chat until the
+// session is committed (see /api/commit). It judges the student's cumulative
+// understanding across priorTurns + the latest transcript.
 import { NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 import { embed, toFloat32Buffer } from '@/lib/embed';
 import { claudeTool } from '@/lib/claude';
 import { USER_ID } from '@/lib/constants';
-import { resolveBrainId, conceptKey, masteryKey } from '@/lib/brains';
-import { statusFromScore } from '@/lib/mastery';
+import { resolveBrainId, conceptKey } from '@/lib/brains';
 import { withinBrainKnnQuery, crossBrainKnnQuery, parseSearchResults } from '@/lib/retrieve';
 import { buildEvalPrompt, normalizeEvaluation, EVALUATION_TOOL } from '@/lib/evaluate';
-import { blendMastery } from '@/lib/score';
-import { readMisconceptions, mergeMisconceptions } from '@/lib/memory';
+import { readMisconceptions } from '@/lib/memory';
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -20,6 +21,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'conceptId and transcript (strings) required' }, { status: 400 });
   }
   const brainId = resolveBrainId(body?.brainId);
+  // Earlier accepted turns this session — the cumulative context that fixes the
+  // k=1 lookback problem (a follow-up no longer "forgets" the basics).
+  const priorTurns: string[] = Array.isArray(body?.priorTurns)
+    ? body.priorTurns.filter((t: unknown): t is string => typeof t === 'string')
+    : [];
 
   const redis = await getRedis();
 
@@ -47,17 +53,10 @@ export async function POST(req: Request) {
     'name',
     'summary',
   ]);
-  // Prior mastery + attempt count drive the decay blend (Feature 4).
-  const [priorRaw, attemptsRaw] = await redis.hmGet(conceptKey(USER_ID, brainId, conceptId), [
-    'masteryScore',
-    'attempts',
-  ]);
-  const priorScore = Number(priorRaw) || 0;
-  const priorAttempts = Number(attemptsRaw) || 0;
   const known = await readMisconceptions(redis, USER_ID, brainId);
 
-  // 3. Claude evaluation, grounded in retrieved nodes. Forced tool use
-  // guarantees structure; normalizeEvaluation still clamps as defense (Rule 6).
+  // 3. Claude evaluation, grounded in retrieved nodes + the session so far.
+  // Forced tool use guarantees structure; normalizeEvaluation still clamps.
   const raw = await claudeTool(
     buildEvalPrompt(
       { name: name ?? conceptId, summary: summary ?? '' },
@@ -65,37 +64,17 @@ export async function POST(req: Request) {
       related,
       known,
       crossBrain,
+      priorTurns.join('\n\n'),
     ),
     EVALUATION_TOOL,
   );
   const evaluation = normalizeEvaluation(raw);
 
-  // 3b. blend this turn's score into prior mastery with decay so history counts
-  // and one weak turn doesn't tank the score (Feature 4).
-  const masteryScore = blendMastery(priorScore, evaluation.masteryScore, priorAttempts);
-
-  // 4. persist blended mastery (HSET + ZADD), bump attempts, append misconceptions
-  const status = statusFromScore(masteryScore);
-  await redis.hSet(conceptKey(USER_ID, brainId, conceptId), {
-    masteryScore: String(masteryScore),
-    status,
-    attempts: String(priorAttempts + 1),
-  });
-  await redis.zAdd(masteryKey(USER_ID, brainId), {
-    score: masteryScore,
-    value: conceptId,
-  });
-  if (evaluation.misconceptions.length) {
-    await mergeMisconceptions(redis, known, evaluation.misconceptions, USER_ID, brainId);
-  }
-
-  // masteryScore reflects the blended value the UI should recolor to; turnScore
-  // is this explanation's standalone score.
+  // No persistence here — masteryScore is the cumulative session score the chat
+  // shows provisionally; it commits to mastery only via /api/commit on leave.
   return NextResponse.json({
     ...evaluation,
-    masteryScore,
-    turnScore: evaluation.masteryScore,
-    status,
+    sessionScore: evaluation.masteryScore,
     related,
     crossBrain,
   });

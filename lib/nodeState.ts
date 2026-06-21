@@ -62,6 +62,47 @@ export function nodeRadius(status: NodeStatus, score: number): number {
   return status === 'untouched' ? 10 : Math.max(12, (score / 100) * 28 + 10);
 }
 
+// ---- Hover expand model (R2) -------------------------------------------
+// Nodes render as small solid dots and bloom toward `expanded` as the cursor
+// nears them. These are pure so the easing curve stays testable; the canvas
+// drawing in NeuronMap composes them.
+
+// Base dot size by the settings "node size" preference. Smaller than the old
+// mastery-driven radius — the map is now a field of dots that expand on hover.
+export const HOVER_BASE: Record<'small' | 'medium' | 'large', number> = {
+  small: 3,
+  medium: 4.5,
+  large: 6,
+};
+// Fully-expanded radius (cursor on the node) for the same three presets.
+export const HOVER_EXPANDED: Record<'small' | 'medium' | 'large', number> = {
+  small: 16,
+  medium: 20,
+  large: 26,
+};
+
+// Smoothstep eases the 0→1 expansion so growth feels organic, not linear.
+export function smoothstep(x: number): number {
+  const c = Math.max(0, Math.min(1, x));
+  return c * c * (3 - 2 * c);
+}
+
+// Cursor proximity → expansion factor in [0,1]. 1 when the cursor is on the
+// node, 0 once it's `influencePx` screen-pixels away.
+export function hoverScale(distPx: number, influencePx: number): number {
+  return smoothstep(1 - distPx / influencePx);
+}
+
+// Interpolate the rendered radius from base dot to expanded by factor t.
+export function expandedRadius(t: number, base: number, expanded: number): number {
+  return base + t * (expanded - base);
+}
+
+// Solid dot color per status (untouched stays hollow, drawn as an outline).
+export function nodeDotColor(status: NodeStatus): string {
+  return nodeTextColor(status);
+}
+
 // Progress-tab status pills (background + text + label per state).
 export const STATUS_PILL: Record<NodeStatus, { bg: string; color: string; label: string }> = {
   mastered: { bg: '#ECFDF5', color: '#16523A', label: 'Mastered' },

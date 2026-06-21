@@ -16,6 +16,44 @@ export interface BrainLink {
   score: number; // cosine similarity in [-1, 1]
 }
 
+// A concept node in the unified overview field. The id is namespaced by brain
+// (`${brainId}::${conceptId}`) so concepts that share an id across brains stay
+// distinct in one force graph.
+export interface OverviewNode {
+  id: string;
+  conceptId: string;
+  brainId: string;
+  name: string;
+  masteryScore: number;
+  status: string;
+}
+
+// An intra-brain edge in the overview, endpoints namespaced like OverviewNode.
+export interface OverviewConceptLink {
+  source: string;
+  target: string;
+  brainId: string;
+}
+
+// Evenly space brains around a circle so each cluster settles into its own lobe
+// region. A single brain sits at the origin. Pure so the layout is testable.
+export function brainAnchors(
+  ids: string[],
+  radius: number,
+): Record<string, { x: number; y: number }> {
+  const out: Record<string, { x: number; y: number }> = {};
+  const n = ids.length;
+  ids.forEach((id, i) => {
+    if (n === 1) {
+      out[id] = { x: 0, y: 0 };
+      return;
+    }
+    const angle = (2 * Math.PI * i) / n;
+    out[id] = { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+  });
+  return out;
+}
+
 // A dotted connector is drawn between two brains whose similarity exceeds this.
 // Tunable — text embeddings have a high similarity floor, so this sits well
 // above 0.
