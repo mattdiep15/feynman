@@ -92,7 +92,7 @@ function drawLabel(
   // background without an outline.
   if (halo) {
     ctx.lineJoin = 'round';
-    ctx.lineWidth = 2 / globalScale;
+    ctx.lineWidth = 3 / globalScale;
     ctx.strokeStyle = halo;
     ctx.strokeText(text, x, y);
   }
