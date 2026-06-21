@@ -10,6 +10,7 @@ import Converse from './Converse';
 import ProgressTab from './ProgressTab';
 import HowItWorks from './HowItWorks';
 import NotesPanel from './NotesPanel';
+import Modal from './Modal';
 import { TAB_DEFS, type TabId } from './tabDefs';
 
 export default function Feynman() {
@@ -19,6 +20,7 @@ export default function Feynman() {
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [tab, setTab] = useState<TabId>('chat');
   const [building, setBuilding] = useState(false);
+  const [addingNotes, setAddingNotes] = useState(false);
 
   const loadBrains = useCallback(async () => {
     const res = await fetch('/api/brains');
@@ -104,6 +106,11 @@ export default function Feynman() {
     }
   };
 
+  const addNotes = async (notes: string) => {
+    await buildMap(notes);
+    setAddingNotes(false);
+  };
+
   const clearBrain = async () => {
     if (!activeBrainId) return;
     if (!window.confirm('Clear this brain? Deletes all concepts, edges, mastery, and memory.')) return;
@@ -184,6 +191,7 @@ export default function Feynman() {
                     selectedId={selected?.id ?? null}
                     onSelect={selectConcept}
                     onClear={clearBrain}
+                    onAddNotes={() => setAddingNotes(true)}
                   />
                 </div>
               ) : (
@@ -205,6 +213,16 @@ export default function Feynman() {
           )}
         </div>
       </div>
+
+      {addingNotes && (
+        <Modal title="Add notes to this brain" onClose={() => setAddingNotes(false)}>
+          <div className="empty-body" style={{ marginBottom: 12 }}>
+            New concepts are added to your existing neuron map. Concepts you&apos;ve already
+            practiced keep their mastery.
+          </div>
+          <NotesPanel onBuild={addNotes} busy={building} compact />
+        </Modal>
+      )}
     </div>
   );
 }

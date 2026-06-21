@@ -23,9 +23,16 @@ export async function POST(req: Request) {
   const raw = await claudeJson(buildExtractPrompt(notes), { maxTokens: 8192 });
   const { concepts, edges } = normalizeExtraction(raw);
 
-  // 2. each concept: HSET (incl. Buffer embedding, userId, brainId) + ZADD mastery (Rule 2)
+  // 2. each concept: HSET (incl. Buffer embedding, userId, brainId) + ZADD mastery (Rule 2).
+  // Additive: extracting more notes into an existing brain must not clobber
+  // concepts the user has already practiced. If the id already exists, skip it
+  // (preserving masteryScore/status/embedding and avoiding a wasted re-embed);
+  // only brand-new concepts are written at score 0.
+  const added: typeof concepts = [];
   for (const concept of concepts) {
-    await redis.hSet(conceptKey(USER_ID, brainId, concept.id), {
+    const key = conceptKey(USER_ID, brainId, concept.id);
+    if (await redis.exists(key)) continue;
+    await redis.hSet(key, {
       name: concept.name,
       summary: concept.summary,
       masteryScore: '0',
@@ -35,6 +42,7 @@ export async function POST(req: Request) {
       embedding: toFloat32Buffer(await embed(concept.summary, 'document')),
     });
     await redis.zAdd(masteryKey(USER_ID, brainId), { score: 0, value: concept.id });
+    added.push(concept);
   }
 
   // 3. each edge: SADD edges:${USER_ID}:${brainId}:${from}  `${to}:${type}`
@@ -42,5 +50,5 @@ export async function POST(req: Request) {
     await redis.sAdd(edgesKey(USER_ID, brainId, edge.from), `${edge.to}:${edge.type}`);
   }
 
-  return NextResponse.json({ concepts, edges });
+  return NextResponse.json({ concepts, edges, added: added.length });
 }
