@@ -45,6 +45,9 @@ vector index (idempotent — safe on every cold start).
 npm test         # unit + route tests (external SDKs mocked — no keys needed)
 ```
 
+> For step-by-step bring-up, per-layer verification (Redis/extract/voice), API
+> smoke tests, and troubleshooting, see **[RUNBOOK.md](./RUNBOOK.md)**.
+
 ### 5. Build / deploy
 ```bash
 npm run build
