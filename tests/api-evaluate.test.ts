@@ -30,8 +30,12 @@ vi.mock('@/lib/embed', () => ({
   toFloat32Buffer: (a: number[]) => Buffer.from(new Float32Array(a).buffer),
 }));
 vi.mock('@/lib/claude', () => ({
+  // Rubric sub-scores (20+18+10+7 = 55); the total is computed, not free-typed.
   claudeTool: vi.fn(async () => ({
-    masteryScore: 55,
+    coreAccuracy: 20,
+    keyRelationships: 18,
+    absenceOfMisconceptions: 10,
+    connectsToRelated: 7,
     correct: ['defined principal'],
     missing: ['role of time'],
     misconceptions: ['thinks interest is linear'],
