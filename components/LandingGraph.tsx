@@ -90,6 +90,7 @@ export default function LandingGraph() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const rotationRef = useRef(0);
   const tunedRef = useRef(false);
+  const fittedRef = useRef(false);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
@@ -134,16 +135,24 @@ export default function LandingGraph() {
         enablePanInteraction={false}
         linkColor={() => cssVar('--border', '#E5E7EB')}
         linkWidth={0.5}
-        onEngineStop={() => {
-          // Spread the denser field out, then reheat once so the stronger charge
-          // and link spacing actually take effect (a one-shot guard avoids a
-          // reheat→stop→reheat loop). (R4)
+        onEngineTick={() => {
+          // Shape the spacing on the FIRST tick (alpha is still high) so the field
+          // settles ONCE into a spread layout — no settle-then-reheat "explosion".
+          // Moderate charge: spaced, but not flung apart. (R4)
           const fg = fgRef.current;
           if (!fg || tunedRef.current) return;
           tunedRef.current = true;
-          fg.d3Force('charge')?.strength(-600);
-          fg.d3Force('link')?.distance(55);
-          fg.d3ReheatSimulation?.();
+          fg.d3Force('charge')?.strength(-240);
+          fg.d3Force('link')?.distance(42);
+        }}
+        onEngineStop={() => {
+          // Frame the settled field centered in the viewport (slight overfill so
+          // the slow rotation reads as spinning about the center, with no empty
+          // corners). Runs once.
+          const fg = fgRef.current;
+          if (!fg || fittedRef.current) return;
+          fittedRef.current = true;
+          fg.zoomToFit(900, -Math.round(Math.min(size.w, size.h) * 0.12));
         }}
         nodeCanvasObjectMode={() => 'replace'}
         nodeCanvasObject={(node: any, ctx, globalScale) => {
