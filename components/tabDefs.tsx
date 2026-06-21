@@ -2,9 +2,20 @@
 // rendering from the same list.
 import type { ReactNode } from 'react';
 
-export type TabId = 'chat' | 'graph' | 'progress' | 'how';
+export type TabId = 'overview' | 'chat' | 'graph' | 'progress' | 'how';
 
 export const TAB_DEFS: { id: TabId; label: string; icon: ReactNode }[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    icon: (
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5}>
+        <circle cx="5" cy="6" r="2.5" />
+        <circle cx="11" cy="10" r="2.5" />
+        <line x1="7" y1="7.5" x2="9" y2="8.5" strokeDasharray="1.5 1.5" />
+      </svg>
+    ),
+  },
   {
     id: 'chat',
     label: 'Converse',

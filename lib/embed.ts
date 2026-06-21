@@ -26,3 +26,9 @@ export async function embed(
 export function toFloat32Buffer(embedding: number[]): Buffer {
   return Buffer.from(new Float32Array(embedding).buffer);
 }
+
+// Decode a stored Float32 embedding buffer back into a number[] (the inverse of
+// toFloat32Buffer). Used by the overview dashboard to mean concept vectors.
+export function fromFloat32Buffer(buf: Buffer): number[] {
+  return Array.from(new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 4)));
+}
