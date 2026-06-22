@@ -15,6 +15,8 @@ Feynman is a **voice-first learning agent**. You paste your notes, give it an in
   <a href="https://devpost.com/software/feynman-s6h3ke"><b>📝 Devpost</b></a>
   &nbsp;·&nbsp;
   <a href="https://docs.google.com/presentation/d/1Phhx9FkcMEhtW2xGULLAx6HPz6B2Rzj15hy87e_OIMo/edit?usp=sharing"><b>📄 Slides</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://www.youtube.com/watch?v=veUY0hJSdsw"><b>🎥 Demo</b></a>
 </p>
 
 ---
